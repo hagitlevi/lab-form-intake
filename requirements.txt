@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+psycopg[binary,pool]
+PyMuPDF
+opencv-python-headless
+pytesseract
+zxing-cpp
+anthropic
