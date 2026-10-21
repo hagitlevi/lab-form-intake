@@ -1,4 +1,5 @@
 fastapi
+python-multipart
 uvicorn[standard]
 python-dotenv
 psycopg[binary,pool]
@@ -7,3 +8,4 @@ opencv-python-headless
 pytesseract
 zxing-cpp
 anthropic
+rapidfuzz

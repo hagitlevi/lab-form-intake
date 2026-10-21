@@ -4,6 +4,7 @@ Plain functions, no FastAPI/DB involved - these operate on files and images only
 """
 
 import os
+import time
 from dataclasses import dataclass, field
 
 import cv2
@@ -38,6 +39,7 @@ class Page:
     image: np.ndarray  # BGR, rasterized at DPI
     is_digital: bool
     pdf_text: str = ""
+    render_seconds: float = 0.0  # time spent rasterizing this page in split_files()
 
 
 @dataclass
@@ -99,7 +101,9 @@ def split_files(paths: list[str]) -> tuple[list[Page], list[dict]]:
         doc = pymupdf.open(path)
         for i in range(doc.page_count):
             fitz_page = doc[i]
+            t0 = time.monotonic()
             image = _page_image(fitz_page)
+            render_seconds = time.monotonic() - t0
             if _is_blank(image):
                 skipped.append({"source": path, "page_number": i + 1})
                 continue
@@ -110,6 +114,7 @@ def split_files(paths: list[str]) -> tuple[list[Page], list[dict]]:
                     image=image,
                     is_digital=is_digital_page(fitz_page),
                     pdf_text=fitz_page.get_text() if is_digital_page(fitz_page) else "",
+                    render_seconds=render_seconds,
                 )
             )
         # keep `doc` alive for as long as pages reference data copied out of it - not needed here
@@ -127,9 +132,13 @@ def _rotate_image(image: np.ndarray, angle: int) -> np.ndarray:
     return image
 
 
+# a hung tesseract.exe is killed after this and pytesseract raises RuntimeError
+TESSERACT_TIMEOUT_S = 60
+
+
 def _osd_rotation(gray: np.ndarray) -> int:
     try:
-        osd = pytesseract.image_to_osd(gray, output_type=pytesseract.Output.DICT)
+        osd = pytesseract.image_to_osd(gray, output_type=pytesseract.Output.DICT, timeout=TESSERACT_TIMEOUT_S)
         return int(osd.get("rotate", 0)) % 360
     except pytesseract.TesseractError:
         return 0
@@ -180,27 +189,79 @@ def _perspective_correct(image: np.ndarray) -> np.ndarray:
     return cv2.warpPerspective(image, matrix, (w, h))
 
 
-def preprocess(image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Return (grayscale image for OCR, color image for the AI call)."""
+def apply_orientation(image: np.ndarray) -> tuple[int, np.ndarray]:
+    """OSD-detected rotation (0/90/180/270) applied to image. Split out of preprocess()
+    only so callers can time/report this stage separately - behavior is unchanged."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     angle = _osd_rotation(gray)
     color = _rotate_image(image, angle) if angle else image
+    return angle, color
 
-    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+
+def _gray_luminance(color: np.ndarray) -> np.ndarray:
+    return cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+
+
+def _gray_red_channel(color: np.ndarray) -> np.ndarray:
+    """Yellow highlighter is high-R/high-G/low-B, so it reads almost as white on the red
+    channel alone - this erases the highlighter while leaving black text's contrast intact."""
+    return color[:, :, 2]  # BGR -> red is index 2
+
+
+def _gray_max_channel(color: np.ndarray) -> np.ndarray:
+    return np.max(color, axis=2)
+
+
+def _binarize_otsu(gray: np.ndarray) -> np.ndarray:
+    _, out = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return out
+
+
+def _binarize_adaptive(gray: np.ndarray, block_size: int = 25, c: int = 10) -> np.ndarray:
+    return cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, block_size, c
+    )
+
+
+def apply_preprocessing(color: np.ndarray, to_gray=_gray_luminance, binarize=None) -> tuple[np.ndarray, np.ndarray]:
+    """Deskew, perspective-correct, CLAHE. Split out of preprocess() for per-stage timing.
+
+    to_gray/binarize default to exactly the original behavior (luminance grayscale, no
+    binarization) - they only exist so backend.tools.ocr_experiment can compare alternatives
+    without duplicating the deskew/perspective geometry. color is never touched by either -
+    it stays the full-color image sent to the AI and stored for the review screen.
+    """
+    gray = to_gray(color)
     skew = _deskew_angle(gray)
     if abs(skew) > 0.1:
         color = _rotate_bound(color, skew)
 
     color = _perspective_correct(color)
 
-    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+    gray = to_gray(color)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     gray = clahe.apply(gray)
+    if binarize is not None:
+        gray = binarize(gray)
     return gray, color
 
 
-def run_ocr(gray_image: np.ndarray, lang: str = "heb+eng") -> list[Word]:
-    data = pytesseract.image_to_data(gray_image, lang=lang, output_type=pytesseract.Output.DICT)
+def preprocess(image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return (grayscale image for OCR, color image for the AI call)."""
+    _, color = apply_orientation(image)
+    return apply_preprocessing(color)
+
+
+def run_ocr(gray_image: np.ndarray, lang: str = "heb+eng", config: str = "", scale: float = 1) -> list[Word]:
+    """scale: upscale (e.g. 2, INTER_CUBIC) before OCR, for small/dense text - transient,
+    only for this call. Returned bboxes are always rescaled back to gray_image's own
+    coordinates, so callers never need to know OCR ran on a different resolution."""
+    image = gray_image
+    if scale != 1:
+        image = cv2.resize(gray_image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    data = pytesseract.image_to_data(
+        image, lang=lang, config=config, output_type=pytesseract.Output.DICT, timeout=TESSERACT_TIMEOUT_S
+    )
     words = []
     for i, text in enumerate(data["text"]):
         if not text.strip():
@@ -209,13 +270,42 @@ def run_ocr(gray_image: np.ndarray, lang: str = "heb+eng") -> list[Word]:
             Word(
                 text=text,
                 conf=float(data["conf"][i]),
-                left=data["left"][i],
-                top=data["top"][i],
-                width=data["width"][i],
-                height=data["height"][i],
+                left=round(data["left"][i] / scale),
+                top=round(data["top"][i] / scale),
+                width=round(data["width"][i] / scale),
+                height=round(data["height"][i] / scale),
             )
         )
     return words
+
+
+def _iou(a: Word, b: Word) -> float:
+    ax0, ay0, ax1, ay1 = a.left, a.top, a.left + a.width, a.top + a.height
+    bx0, by0, bx1, by1 = b.left, b.top, b.left + b.width, b.top + b.height
+    iw = max(0, min(ax1, bx1) - max(ax0, bx0))
+    ih = max(0, min(ay1, by1) - max(ay0, by0))
+    inter = iw * ih
+    union = a.width * a.height + b.width * b.height - inter
+    return inter / union if union > 0 else 0.0
+
+
+def merge_ocr_passes(primary: list[Word], secondary: list[Word], iou_threshold: float = 0.3) -> list[Word]:
+    """Union of two OCR passes over the same page (e.g. two different grayscale
+    conversions) - where their word boxes overlap (IoU >= iou_threshold), keep only the
+    higher-confidence one; non-overlapping words from both passes are kept as-is."""
+    merged = list(primary)
+    used_secondary: set[int] = set()
+    for i, w in enumerate(merged):
+        for j, w2 in enumerate(secondary):
+            if j in used_secondary:
+                continue
+            if _iou(w, w2) >= iou_threshold:
+                used_secondary.add(j)
+                if w2.conf > w.conf:
+                    merged[i] = w2
+                break
+    merged.extend(w2 for j, w2 in enumerate(secondary) if j not in used_secondary)
+    return merged
 
 
 def _decode(image: np.ndarray):

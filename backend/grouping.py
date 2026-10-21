@@ -15,8 +15,10 @@ without needing a positive signal to split (a wrong merge is worse than a wrong 
 
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import backend.pipeline as pipeline
+from backend.pipeline.scan import failed_pages, load_cache, scan_pages
 
 PAGE_OF_RE = re.compile(r"(?:page|עמוד)\s*(\d+)\s*(?:of|מתוך)\s*(\d+)", re.IGNORECASE)
 SIX_DIGIT_RE = re.compile(r"(?<!\d)\d{6}(?!\d)")
@@ -150,14 +152,23 @@ def page_facts_from_ocr(page, words, barcodes, crop_words=()) -> PageFacts:
     )
 
 
-def run(files: list[str]) -> tuple[list[FormGroup], list[dict]]:
-    """Run pipeline steps 2+3 on files and group the result. Returns (groups, skipped_pages)."""
+def run(files: list[str], no_cache: bool = False) -> tuple[list[FormGroup], list[dict]]:
+    """Run pipeline steps 2+3 on files and group the result. Returns (groups, skipped_pages).
+
+    Step 2 reuses samples/debug/<first file stem>_scan.json if present (shared with
+    backend.tools.scan_pdf) instead of recomputing OCR/barcodes, and writes it once at the
+    end of the scan. --no-cache (no_cache=True) ignores it. Failed pages are printed.
+    """
     pages, skipped = pipeline.split_files(files)
+    cache_path = Path("samples/debug") / f"{Path(files[0]).stem}_scan.json"
+    cache = {} if no_cache else load_cache(cache_path)
+    scans, _ = scan_pages(pages, cache=cache, no_cache=no_cache, cache_path=cache_path)
+    for line in failed_pages(scans):
+        print(f"FAILED page: {line}")
+
     facts = []
-    for page in pages:
-        gray, color = pipeline.preprocess(page.image)
-        words = pipeline.run_ocr(gray)
-        barcodes = pipeline.read_barcodes(color, gray, words)
-        crop_words = [w for b in barcodes for w in pipeline.barcode_crop_words(gray, b.rect)]
-        facts.append(page_facts_from_ocr(page, words, barcodes, crop_words))
+    for page, scan in zip(pages, scans):
+        main_words = [w for w in scan.words if w.rotation == 0]
+        crop_words = [w for w in scan.words if w.rotation != 0]
+        facts.append(page_facts_from_ocr(page, main_words, scan.barcodes, crop_words))
     return group_pages(facts), skipped

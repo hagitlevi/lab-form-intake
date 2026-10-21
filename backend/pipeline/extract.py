@@ -28,8 +28,8 @@ from backend.pipeline.models import ExtractedForm, ExtractionResponse
 load_dotenv()
 
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
-AI_MAX_IMAGE_PX = int(os.environ.get("AI_MAX_IMAGE_PX", "1568"))
-PROMPT_VERSION = "v1"
+AI_MAX_IMAGE_PX = int(os.environ.get("AI_MAX_IMAGE_PX", "2048"))
+PROMPT_VERSION = "v2"
 TOOL_NAME = "extract_forms"
 CACHE_DIR = Path("samples/debug/ai_cache")
 
@@ -41,7 +41,7 @@ _prompt_cache: Optional[str] = None
 def _load_prompt() -> str:
     global _prompt_cache
     if _prompt_cache is None:
-        _prompt_cache = (Path(__file__).parent / "prompts" / "extract_v1.txt").read_text(
+        _prompt_cache = (Path(__file__).parent / "prompts" / "extract_v2.txt").read_text(
             encoding="utf-8"
         )
     return _prompt_cache

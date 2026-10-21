@@ -11,7 +11,7 @@ Final demo: 28/10/2026. Prefer simple, working code over abstractions.
   (lang "heb+eng", runs locally), zxing-cpp (barcodes), Anthropic SDK (multimodal extraction)
 - Frontend: React + Vite, Hebrew RTL UI, built and served as static files by FastAPI (one service, one URL)
 - Config from environment (.env locally, never committed): DATABASE_URL, ANTHROPIC_API_KEY,
-  ANTHROPIC_MODEL, TESSERACT_CMD (optional, Windows only), LOCAL_WORKERS (default 2), AI_WORKERS (default 6)
+  ANTHROPIC_MODEL, TESSERACT_CMD (optional, Windows only), LOCAL_WORKERS (default 2), AI_WORKERS (default 3)
 - Deployment: Render web service using Docker. Do NOT create a Dockerfile or deploy config
   until explicitly asked.
 
