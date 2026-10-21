@@ -5,3 +5,10 @@ __pycache__/
 node_modules/
 dist/
 samples/
+
+# hw_ocr experiment: keep only the report and shortlist
+experiments/hw_ocr/*
+!experiments/hw_ocr/report.md
+!experiments/hw_ocr/shortlist.md
+!experiments/hw_ocr/truth.json
+!experiments/hw_ocr/make_crops.py
