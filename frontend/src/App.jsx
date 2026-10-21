@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Upload from './Upload.jsx'
 import Review from './Review.jsx'
+import FormView from './FormView.jsx'
 
 export function navigate(path) {
   history.pushState(null, '', path)
@@ -24,9 +25,11 @@ export default function App() {
   }, [])
 
   const batch = path.match(/^\/batches\/(\d+)$/)
+  const form = path.match(/^\/forms\/(\d+)$/)
   let page = <Upload />
   if (batch) page = <Review key={batch[1]} id={batch[1]} />
-  else if (path === '/records' || path.startsWith('/forms/')) page = <div className="notice">בקרוב.</div>
+  else if (form) page = <FormView key={form[1]} id={form[1]} />
+  else if (path === '/records') page = <div className="notice">בקרוב.</div>
 
   const onRecords = path === '/records'
   return (

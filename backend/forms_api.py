@@ -161,6 +161,35 @@ def apply_patch(conn, form_id: int, patch: dict) -> dict:
     return updated
 
 
+def get_form(conn, form_id: int) -> dict | None:
+    """One form for the single-form screen: its 7 fields (one entry per item) with state,
+    reasons, bbox [x, y, w, h] and the page_id the bbox belongs to. bbox is in the pixel
+    space of GET /api/pages/{page_id}/image. No OCR text."""
+    form = conn.execute(
+        "SELECT id, batch_id, status, probable_continuation, split_by_ai, error FROM forms WHERE id = %s", (form_id,)
+    ).fetchone()
+    if form is None:
+        return None
+    page_ids = [r[0] for r in conn.execute(
+        """
+        SELECT p.id FROM pages p JOIN files fi ON fi.id = p.file_id
+        WHERE p.form_id = %s ORDER BY fi.position, p.page_index
+        """,
+        (form_id,),
+    ).fetchall()]
+    fields = [
+        {"name": r[0], "item_index": r[1], "value": r[2], "state": r[3], "reasons": r[4], "bbox": r[5], "page_id": r[6]}
+        for r in conn.execute(
+            "SELECT name, item_index, value, state, reasons, bbox, page_id FROM fields WHERE form_id = %s ORDER BY name, item_index",
+            (form_id,),
+        ).fetchall()
+    ]
+    return {
+        "id": form[0], "batch_id": form[1], "status": form[2], "probable_continuation": form[3],
+        "split_by_ai": form[4], "error": form[5], "page_ids": page_ids, "fields": fields,
+    }
+
+
 def mark_separate(conn, form_id: int) -> None:
     conn.execute("UPDATE forms SET probable_continuation = false, updated_at = now() WHERE id = %s", (form_id,))
     conn.commit()
@@ -228,6 +257,19 @@ def merge_with_previous(conn, form_id: int) -> int:
         new_form_id = persist_form(conn, batch_id, group, page_id_lookup, form_page_ids, form, confidence)
     conn.commit()
     return new_form_id
+
+
+def approve_form(conn, form_id: int) -> list[dict]:
+    """Same rule as approve_batch, scoped to one form: still-in-review fields are returned
+    (caller should 409) and nothing changes; otherwise the form becomes 'approved'."""
+    reviewing = conn.execute(
+        "SELECT form_id, name, item_index, reasons FROM fields WHERE form_id = %s AND state = 'review'", (form_id,)
+    ).fetchall()
+    if reviewing:
+        return [{"form_id": r[0], "field": r[1], "item_index": r[2], "reasons": r[3]} for r in reviewing]
+    conn.execute("UPDATE forms SET status = 'approved', updated_at = now() WHERE id = %s", (form_id,))
+    conn.commit()
+    return []
 
 
 def approve_batch(conn, batch_id: int) -> list[dict]:

@@ -1,51 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from './App.jsx'
+import { SHARED, call, errText, patchBody, patchField, rowReview, useFieldEdit } from './fieldEdit.js'
 
-const SHARED = ['first_name', 'last_name', 'national_id', 'received_date', 'sender']
 const HEADERS = ["עמ'", 'שם פרטי', 'שם משפחה', 'ת״ז', 'מספר מרכזי', 'תאריך קבלה', 'גורם שולח', 'מספר התחייבות', '']
 const NUMERIC = new Set(['national_id', 'central_numbers', 'received_date', 'commitment_number'])
 
-async function call(url, method = 'POST', body) {
-  const res = await fetch(url, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const json = await res.json().catch(() => ({}))
-  return { ok: res.ok, status: res.status, json }
-}
-
-const errText = (r) => (typeof r.json.detail === 'string' ? r.json.detail : `שגיאה ${r.status}`)
-
 function Cell({ field, numeric, onSave, listId }) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [err, setErr] = useState('')
-  const forced = useRef(false)
   const value = field.value ?? ''
   const review = field.state === 'review'
-
-  const commit = async (confirmEmpty) => {
-    const next = confirmEmpty ? '' : draft.trim()
-    if (!confirmEmpty && next === value && !forced.current) return setEditing(false)
-    forced.current = false
-    const e = await onSave(next === '' ? null : next)
-    if (e) setErr(e)
-    else { setErr(''); setEditing(false) }
-  }
+  const { setDraft, err, commit, inputProps } = useFieldEdit(value, onSave)
 
   const shown = review && value === '' ? <span className="empty">ריק</span> : numeric ? value.split(' ').map((v, i) => <span key={i} className="num">{v}</span>) : value
   return (
     <div className={'cellbox' + (review ? ' review' : '')} data-review={review ? '1' : undefined}
       onClick={() => { if (!editing) { setDraft(value); setEditing(true) } }}>
       {editing ? (
-        <input autoFocus value={draft} dir={numeric ? 'ltr' : undefined} list={listId}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => commit(false)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') { forced.current = true; e.target.blur() }
-            if (e.key === 'Escape') { setErr(''); setEditing(false) }
-          }} />
+        <input autoFocus dir={numeric ? 'ltr' : undefined} list={listId}
+          {...inputProps(() => setEditing(false))} />
       ) : (
         <>
           {shown}
@@ -57,7 +29,7 @@ function Cell({ field, numeric, onSave, listId }) {
       {field.state === 'corrected' && field.reasons?.map((r, i) => <div key={i} className="warn">{r}</div>)}
       {err && <div className="err">{err}</div>}
       {review && value === '' && !editing && (
-        <button className="btn btn-ghost btn-sm confirm" onClick={(e) => { e.stopPropagation(); commit(true) }}>אישור כריק</button>
+        <button className="btn btn-ghost btn-sm confirm" onClick={async (e) => { e.stopPropagation(); if (await commit(true)) setEditing(false) }}>אישור כריק</button>
       )}
     </div>
   )
@@ -82,11 +54,6 @@ function pagesLabel(pages) {
     <div key={name}>{name} עמ׳ <span className="num">{a === b ? a : `${a}–${b}`}</span></div>
   ))
 }
-
-const rowReview = (r) =>
-  SHARED.some((n) => r[n].state === 'review') ||
-  r.commitment_number.state === 'review' ||
-  r.central_numbers.some((c) => c.state === 'review')
 
 // distinct fields in review (shared fields repeat on every commitment row of a form)
 function countReview(rows) {
@@ -128,8 +95,8 @@ export default function Review({ id }) {
   const jump = () => document.querySelector('[data-review="1"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 
   const patch = (formId, body) => async (value) => {
-    const r = await call(`/api/forms/${formId}`, 'PATCH', body(value))
-    if (!r.ok) return errText(r)
+    const e = await patchField(formId, body(value))
+    if (e) return e
     await load()
     return null
   }
@@ -253,7 +220,7 @@ export default function Review({ id }) {
             const sharedCell = (n) => (
               <td className="cell" key={n}>
                 <Cell field={r[n]} numeric={NUMERIC.has(n)} listId={n === 'sender' ? 'senders' : undefined}
-                  onSave={patch(fid, (v) => ({ [n]: v }))} />
+                  onSave={patch(fid, (v) => patchBody(n, 0, v))} />
               </td>
             )
             return (
@@ -289,7 +256,7 @@ export default function Review({ id }) {
                 {sharedCell('sender')}
                 <td className="cell">
                   <Cell field={r.commitment_number} numeric
-                    onSave={patch(fid, (v) => ({ commitment_numbers: { [r.item_index]: v } }))} />
+                    onSave={patch(fid, (v) => patchBody('commitment_number', r.item_index, v))} />
                 </td>
                 <td><Link to={`/forms/${fid}`}>טופס</Link></td>
               </tr>

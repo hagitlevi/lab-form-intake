@@ -162,11 +162,12 @@ def _run_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[i
 
     with pool.connection() as conn:
         for page, scan in zip(pages, scans):
+            page_id = page_ids[(page.source, page.page_number)]
             if scan.error:
-                conn.execute(
-                    "UPDATE pages SET error = %s WHERE id = %s",
-                    (scan.error, page_ids[(page.source, page.page_number)]),
-                )
+                conn.execute("UPDATE pages SET error = %s WHERE id = %s", (scan.error, page_id))
+            else:
+                # field bboxes are in the oriented/deskewed space of scan.color, so store that
+                conn.execute("UPDATE pages SET image = %s WHERE id = %s", (_encode_image(scan.color), page_id))
         conn.commit()
 
     facts = []

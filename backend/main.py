@@ -91,6 +91,15 @@ def get_page_image(page_id: int):
     return Response(content=row[0], media_type="image/jpeg")
 
 
+@app.get("/api/forms/{form_id}")
+def get_form(form_id: int):
+    with pool.connection() as conn:
+        form = forms_api.get_form(conn, form_id)
+    if form is None:
+        raise HTTPException(404, "form not found")
+    return form
+
+
 @app.patch("/api/forms/{form_id}")
 async def patch_form(form_id: int, request: Request):
     patch = await request.json()
@@ -123,6 +132,17 @@ def mark_separate(form_id: int):
             raise HTTPException(404, "form not found")
         forms_api.mark_separate(conn, form_id)
     return {"ok": True}
+
+
+@app.post("/api/forms/{form_id}/approve")
+def approve_form(form_id: int):
+    with pool.connection() as conn:
+        if conn.execute("SELECT 1 FROM forms WHERE id = %s", (form_id,)).fetchone() is None:
+            raise HTTPException(404, "form not found")
+        still_review = forms_api.approve_form(conn, form_id)
+    if still_review:
+        raise HTTPException(409, detail={"count": len(still_review), "fields": still_review})
+    return {"status": "approved"}
 
 
 @app.post("/api/batches/{batch_id}/approve")
