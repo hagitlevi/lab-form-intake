@@ -75,6 +75,22 @@ def _is_blank(image: np.ndarray) -> bool:
     return ink_ratio < BLANK_INK_RATIO
 
 
+def _confirm_blank(image: np.ndarray, pdf_text: str) -> bool:
+    """A page below the ink-ratio threshold is only actually treated as blank if it also
+    has no extractable PDF text, no OCR words and no barcodes - a real but very light/faint
+    form (e.g. mostly white space with a small sticker) must not be judged blank by the
+    ink-ratio heuristic alone. Only called for pages _is_blank() already flagged, so this
+    extra OCR/barcode pass is rare in practice."""
+    if pdf_text.strip():
+        return False
+    _, oriented = apply_orientation(image)
+    gray, color = apply_preprocessing(oriented)
+    words = run_ocr(gray)
+    if any(w.text.strip() for w in words):
+        return False
+    return not read_barcodes(color, gray, words)
+
+
 def is_digital_page(page: pymupdf.Page) -> bool:
     """A page is digital if it has a text layer and no single image covers most of it."""
     if not page.get_text().strip():
@@ -104,16 +120,17 @@ def split_files(paths: list[str]) -> tuple[list[Page], list[dict]]:
             t0 = time.monotonic()
             image = _page_image(fitz_page)
             render_seconds = time.monotonic() - t0
-            if _is_blank(image):
+            if _is_blank(image) and _confirm_blank(image, fitz_page.get_text()):
                 skipped.append({"source": path, "page_number": i + 1})
                 continue
+            digital = is_digital_page(fitz_page)
             pages.append(
                 Page(
                     source=path,
                     page_number=i + 1,
                     image=image,
-                    is_digital=is_digital_page(fitz_page),
-                    pdf_text=fitz_page.get_text() if is_digital_page(fitz_page) else "",
+                    is_digital=digital,
+                    pdf_text=fitz_page.get_text() if digital else "",
                     render_seconds=render_seconds,
                 )
             )

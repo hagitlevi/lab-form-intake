@@ -83,6 +83,45 @@ def audit_log_count(form_id: int) -> int:
         return conn.execute("SELECT count(*) FROM audit_log WHERE form_id = %s", (form_id,)).fetchone()[0]
 
 
+def _summary(result: dict) -> str:
+    return f"state={result['state']} reason_count={len(result['reasons'])}"
+
+
+MANUAL_OVERRIDE_REASON_COUNT = 1  # the fixed override reason is always a single item
+
+
+def check_validation_override(base: str, form_id: int) -> bool:
+    """A PATCHed value that fails validation must stay 'review' with the validation
+    message (not silently become 'corrected'); resubmitting the identical failing value
+    is accepted as a manual override ('corrected', fixed reason). Exercises both a scalar
+    field (national_id) and a list field via the dict PATCH form (commitment_numbers)."""
+    ok = True
+
+    bad_id = "001123344"  # fails the Israeli ID check digit
+    _, payload = patch_json(f"{base}/api/forms/{form_id}", {"national_id": bad_id})
+    first = json.loads(payload)["updated"]["national_id"]
+    print(f"  national_id PATCH #1 (failing value): {_summary(first)}")
+    ok &= first["state"] == "review" and len(first["reasons"]) > 0
+
+    _, payload = patch_json(f"{base}/api/forms/{form_id}", {"national_id": bad_id})
+    second = json.loads(payload)["updated"]["national_id"]
+    print(f"  national_id PATCH #2 (same value again): {_summary(second)}")
+    ok &= second["state"] == "corrected" and len(second["reasons"]) == MANUAL_OVERRIDE_REASON_COUNT
+
+    bad_commitment = "12"  # too short for any known sender's commitment-number format
+    _, payload = patch_json(f"{base}/api/forms/{form_id}", {"commitment_numbers": {"0": bad_commitment}})
+    first_c = json.loads(payload)["updated"]["commitment_numbers"]["0"]
+    print(f"  commitment_numbers[0] PATCH #1 (failing value): {_summary(first_c)}")
+    ok &= first_c["state"] == "review" and len(first_c["reasons"]) > 0
+
+    _, payload = patch_json(f"{base}/api/forms/{form_id}", {"commitment_numbers": {"0": bad_commitment}})
+    second_c = json.loads(payload)["updated"]["commitment_numbers"]["0"]
+    print(f"  commitment_numbers[0] PATCH #2 (same value again): {_summary(second_c)}")
+    ok &= second_c["state"] == "corrected" and len(second_c["reasons"]) == MANUAL_OVERRIDE_REASON_COUNT
+
+    return ok
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
@@ -149,6 +188,16 @@ def main(argv: list[str]) -> int:
         return 1
     after = audit_log_count(form_id)
     print(f"audit_log rows for form {form_id}: {before} -> {after}" + (" OK" if after > before else " MISSING"))
+
+    before_override = audit_log_count(form_id)
+    override_ok = check_validation_override(base, form_id)
+    after_override = audit_log_count(form_id)
+    print(
+        "validation-override behavior: " + ("OK" if override_ok else "FAILED")
+        + f" (audit_log {before_override} -> {after_override})"
+    )
+    if not override_ok:
+        return 1
 
     status, payload = get(f"{base}/api/records?q=&status=")
     print(f"GET /api/records: {status}, {len(json.loads(payload)['rows'])} row(s)")

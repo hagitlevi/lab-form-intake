@@ -11,11 +11,14 @@ import cv2
 import numpy as np
 
 from backend.pipeline import (
+    BLANK_INK_RATIO,
     Word,
     _binarize_adaptive,
     _binarize_otsu,
+    _confirm_blank,
     _gray_max_channel,
     _gray_red_channel,
+    _is_blank,
     merge_ocr_passes,
     run_ocr,
 )
@@ -114,6 +117,30 @@ class TestMergeOcrPasses(unittest.TestCase):
         merged = merge_ocr_passes(primary, secondary)
         kept = next(w for w in merged if w.text == "alone")
         self.assertEqual(kept.conf, 40.0)  # not swapped just because something else scored higher
+
+
+class TestConfirmBlank(unittest.TestCase):
+    """A page the cheap ink-ratio check flags as blank must only actually be skipped if it
+    also has no PDF text, no OCR words and no barcodes - guards against a real, very light
+    form being misjudged blank (see the 'batch interrupted, 0 forms' bug report)."""
+
+    def test_truly_blank_page_is_confirmed_blank(self):
+        white = np.full((600, 400, 3), 255, dtype=np.uint8)
+        self.assertTrue(_is_blank(white))
+        self.assertTrue(_confirm_blank(white, pdf_text=""))
+
+    def test_page_with_pdf_text_is_never_confirmed_blank(self):
+        white = np.full((600, 400, 3), 255, dtype=np.uint8)
+        self.assertFalse(_confirm_blank(white, pdf_text="מספר התחייבות 12345"))
+
+    def test_faint_page_with_real_printed_text_is_not_confirmed_blank(self):
+        # a big white page with a small amount of real text - below the ink-ratio
+        # threshold by pixel count, but OCR-detectable.
+        image = np.full((1200, 1600, 3), 255, dtype=np.uint8)
+        cv2.putText(image, "FORM TEXT", (40, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2)
+        ink_ratio = float((cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) < 250).sum()) / (1200 * 1600)
+        self.assertLess(ink_ratio, BLANK_INK_RATIO, "fixture should sit below the blank threshold")
+        self.assertFalse(_confirm_blank(image, pdf_text=""))
 
 
 if __name__ == "__main__":

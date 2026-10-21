@@ -35,7 +35,15 @@ def apply_migrations(conn) -> list[str]:
 
 
 def mark_interrupted_batches(conn) -> int:
-    """On startup: any batch still 'processing' means the server died mid-run."""
-    cur = conn.execute("UPDATE batches SET status = 'interrupted' WHERE status = 'processing'")
+    """On startup: any batch still 'processing' means the server died mid-run (crash, or a
+    dev-server --reload restart) - the error is never a caught Python exception, so this
+    is the only place it gets a message at all."""
+    cur = conn.execute(
+        """
+        UPDATE batches SET status = 'interrupted',
+            error = 'העיבוד נקטע עקב הפעלה מחדש של השרת לפני שהסתיים'
+        WHERE status = 'processing'
+        """
+    )
     conn.commit()
     return cur.rowcount

@@ -21,6 +21,7 @@ ALLOWED_FIELDS = {
     "central_numbers": "list", "commitment_numbers": "list",
 }
 _SINGULAR = {"central_numbers": "central_number", "commitment_numbers": "commitment_number"}
+MANUAL_OVERRIDE_REASON = "אושר ידנית למרות שגיאת אימות"
 
 
 def _normalize_scalar(name: str, value, sender_value) -> tuple[str | None, list[str]]:
@@ -56,18 +57,47 @@ def _normalize_list_item(singular: str, value, sender_value) -> tuple[str | None
 
 _UPSERT_FIELD = """
 INSERT INTO fields (form_id, name, item_index, value, state, reasons, bbox, page_id)
-VALUES (%s, %s, %s, %s, 'corrected', %s, NULL, NULL)
+VALUES (%s, %s, %s, %s, %s, %s, NULL, NULL)
 ON CONFLICT (form_id, name, item_index)
-DO UPDATE SET value = EXCLUDED.value, state = 'corrected', reasons = EXCLUDED.reasons,
+DO UPDATE SET value = EXCLUDED.value, state = EXCLUDED.state, reasons = EXCLUDED.reasons,
               bbox = NULL, page_id = NULL, updated_at = now()
+RETURNING id
 """
 
 
+def _resolve_state(norm_value: str | None, reasons: list[str], old: dict | None, has_prior_patch: bool) -> tuple[str, list[str]]:
+    """A PATCHed value that fails validation does not become 'corrected': it is saved with
+    state 'review' and the validation message as the reason, so the technician sees it
+    under the cell. Submitting that exact same value again via a SECOND PATCH (same field,
+    same validation message already on record from a PRIOR patch - not merely coinciding
+    with the AI's original value) is a manual override: accepted as 'corrected' with a
+    fixed reason, instead of the validation message. has_prior_patch distinguishes "this
+    field was already PATCHed before" from a field still sitting at its original step-5
+    state, so clicking into an AI-flagged cell and confirming it unchanged on the very
+    first PATCH does NOT skip straight to an override."""
+    if not reasons:
+        return "corrected", reasons
+    if old and has_prior_patch and old["value"] == norm_value:
+        if old["state"] == "review" and old["reasons"] == reasons:
+            return "corrected", [MANUAL_OVERRIDE_REASON]
+        if old["state"] == "corrected" and old["reasons"] == [MANUAL_OVERRIDE_REASON]:
+            return "corrected", [MANUAL_OVERRIDE_REASON]  # already overridden - stays overridden
+    return "review", reasons
+
+
+def _has_prior_patch(conn, field_id: int | None) -> bool:
+    if field_id is None:
+        return False
+    return conn.execute("SELECT 1 FROM audit_log WHERE field_id = %s LIMIT 1", (field_id,)).fetchone() is not None
+
+
 def apply_patch(conn, form_id: int, patch: dict) -> dict:
-    """Whitelisted field correction: validates with the step-5 rules (for reasons shown to
-    the technician) but always stores state='corrected' - a human confirmation overrides
-    the machine state and never blocks batch approval. value=None means confirmed empty.
-    All writes (fields + audit_log) commit together as one transaction."""
+    """Whitelisted field correction: validates with the step-5 rules. A value that passes
+    becomes 'corrected' (a human confirmation overrides the machine state and never blocks
+    batch approval); a value that fails stays 'review' with the validation message, unless
+    the same failing value is resubmitted (see _resolve_state), which is a manual override.
+    value=None means confirmed empty (always accepted). All writes (fields + audit_log)
+    commit together as one transaction."""
     unknown = set(patch) - set(ALLOWED_FIELDS)
     if unknown:
         raise ValueError(f"unknown field(s): {sorted(unknown)}")
@@ -82,33 +112,50 @@ def apply_patch(conn, form_id: int, patch: dict) -> dict:
         kind = ALLOWED_FIELDS[name]
         if kind == "scalar":
             norm_value, reasons = _normalize_scalar(name, value, current_sender)
-            old = conn.execute(
-                "SELECT value FROM fields WHERE form_id = %s AND name = %s AND item_index = 0", (form_id, name)
+            old_row = conn.execute(
+                "SELECT id, value, state, reasons FROM fields WHERE form_id = %s AND name = %s AND item_index = 0",
+                (form_id, name),
             ).fetchone()
-            conn.execute(_UPSERT_FIELD, (form_id, name, 0, norm_value, reasons))
+            old = {"id": old_row[0], "value": old_row[1], "state": old_row[2], "reasons": old_row[3]} if old_row else None
+            has_prior_patch = _has_prior_patch(conn, old["id"] if old else None)
+            state, final_reasons = _resolve_state(norm_value, reasons, old, has_prior_patch)
+            field_id = conn.execute(_UPSERT_FIELD, (form_id, name, 0, norm_value, state, final_reasons)).fetchone()[0]
             conn.execute(
-                "INSERT INTO audit_log (form_id, old_value, new_value) VALUES (%s, %s, %s)",
-                (form_id, old[0] if old else None, norm_value),
+                "INSERT INTO audit_log (form_id, field_id, old_value, new_value) VALUES (%s, %s, %s, %s)",
+                (form_id, field_id, old["value"] if old else None, norm_value),
             )
-            updated[name] = {"value": norm_value, "reasons": reasons}
+            updated[name] = {"value": norm_value, "state": state, "reasons": final_reasons}
         else:
             singular = _SINGULAR[name]
-            old_by_index = dict(conn.execute(
-                "SELECT item_index, value FROM fields WHERE form_id = %s AND name = %s", (form_id, singular)
-            ).fetchall())
-            items = value or []
-            for i, item_value in enumerate(items):
+            old_rows = conn.execute(
+                "SELECT item_index, id, value, state, reasons FROM fields WHERE form_id = %s AND name = %s",
+                (form_id, singular),
+            ).fetchall()
+            old_by_index = {r[0]: {"id": r[1], "value": r[2], "state": r[3], "reasons": r[4]} for r in old_rows}
+            if isinstance(value, dict):  # {"<item_index>": value}: touch only these items
+                items = None
+                targets = [(int(k), v) for k, v in value.items()]
+            else:
+                items = value or []
+                targets = list(enumerate(items))
+            item_results = {}
+            for i, item_value in targets:
                 norm_value, reasons = _normalize_list_item(singular, item_value, current_sender)
-                conn.execute(_UPSERT_FIELD, (form_id, singular, i, norm_value, reasons))
+                old = old_by_index.get(i)
+                has_prior_patch = _has_prior_patch(conn, old["id"] if old else None)
+                state, final_reasons = _resolve_state(norm_value, reasons, old, has_prior_patch)
+                field_id = conn.execute(_UPSERT_FIELD, (form_id, singular, i, norm_value, state, final_reasons)).fetchone()[0]
                 conn.execute(
-                    "INSERT INTO audit_log (form_id, old_value, new_value) VALUES (%s, %s, %s)",
-                    (form_id, old_by_index.get(i), norm_value),
+                    "INSERT INTO audit_log (form_id, field_id, old_value, new_value) VALUES (%s, %s, %s, %s)",
+                    (form_id, field_id, old["value"] if old else None, norm_value),
                 )
-            conn.execute(
-                "DELETE FROM fields WHERE form_id = %s AND name = %s AND item_index >= %s",
-                (form_id, singular, len(items)),
-            )
-            updated[name] = items
+                item_results[i] = {"value": norm_value, "state": state, "reasons": final_reasons}
+            if items is not None:
+                conn.execute(
+                    "DELETE FROM fields WHERE form_id = %s AND name = %s AND item_index >= %s",
+                    (form_id, singular, len(items)),
+                )
+            updated[name] = item_results
 
     conn.commit()
     return updated

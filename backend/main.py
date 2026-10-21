@@ -1,3 +1,4 @@
+import json
 import tempfile
 import threading
 from contextlib import asynccontextmanager
@@ -7,6 +8,7 @@ from typing import Optional
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import batch_runner, forms_api, records
 from .db import apply_migrations, mark_interrupted_batches, pool
@@ -155,5 +157,22 @@ def export_records_csv(q: Optional[str] = None, status: Optional[str] = None):
     )
 
 
+@app.get("/api/senders")
+def senders():
+    return json.loads((Path(__file__).parent / "data" / "senders.json").read_text(encoding="utf-8"))
+
+
+class SPAFiles(StaticFiles):
+    """Static files; unknown non-file paths (e.g. /batches/5) get index.html so the client router handles them."""
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and not path.replace("\\", "/").startswith("api/"):
+                return await super().get_response("index.html", scope)
+            raise
+
+
 if DIST_DIR.is_dir():
-    app.mount("/", StaticFiles(directory=DIST_DIR, html=True), name="frontend")
+    app.mount("/", SPAFiles(directory=DIST_DIR, html=True), name="frontend")

@@ -22,7 +22,7 @@ def _group_fields(field_rows) -> dict[int, dict]:
     return by_form
 
 
-def _form_rows(form: dict, fields_by_name: dict) -> list[dict]:
+def _form_rows(form: dict, fields_by_name: dict, pages: list[dict]) -> list[dict]:
     shared = {name: fields_by_name.get(name, {}).get(0, _MISSING_FIELD) for name in _SHARED_FIELDS}
     central = [fields_by_name.get("central_number", {})[i] for i in sorted(fields_by_name.get("central_number", {}))]
     commitments = fields_by_name.get("commitment_number", {})
@@ -36,6 +36,8 @@ def _form_rows(form: dict, fields_by_name: dict) -> list[dict]:
             "probable_continuation": form["probable_continuation"],
             "split_by_ai": form["split_by_ai"],
             "error": form["error"],
+            "pages": pages,
+            "item_index": item_index,
             **shared,
             "central_numbers": central,
             "commitment_number": commitments.get(item_index, _MISSING_FIELD),
@@ -66,10 +68,22 @@ def fetch_rows(conn, batch_id: int | None = None, form_ids: list[int] | None = N
         (ids,),
     ).fetchall() if ids else []
     fields_by_form = _group_fields(field_rows)
+    pages_by_form: dict[int, list[dict]] = {}
+    for form_id, page_id, filename, page_index, error in conn.execute(
+        """
+        SELECT p.form_id, p.id, fi.filename, p.page_index, p.error
+        FROM pages p JOIN files fi ON fi.id = p.file_id
+        WHERE p.form_id = ANY(%s) ORDER BY fi.position, p.page_index
+        """,
+        (ids,),
+    ).fetchall() if ids else []:
+        pages_by_form.setdefault(form_id, []).append(
+            {"id": page_id, "filename": filename, "page_index": page_index, "error": error}
+        )
 
     rows = []
     for form in form_dicts:
-        rows.extend(_form_rows(form, fields_by_form.get(form["id"], {})))
+        rows.extend(_form_rows(form, fields_by_form.get(form["id"], {}), pages_by_form.get(form["id"], [])))
     return rows
 
 
