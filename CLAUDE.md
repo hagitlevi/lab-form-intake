@@ -23,10 +23,15 @@ One record per commitment number; patient fields live on the form and are shared
 ## Domain rules
 - Central number: lab sticker with a barcode, a 6-digit printed number, and the word "מרכזי"
   beside it. Sometimes handwritten. A form may have several central numbers: keep all.
+  A central number is always a standalone 6-digit number: never cut one out of a longer number
+  (e.g. 944000 from sample number 944000361) - if the only candidate is part of a longer number,
+  return null. A handwritten 6-digit number with a short date beside it ("944619 / 13.8.26")
+  is the central number plus the received date, like "947054-25.8".
 - Received date: "התקבל" stamp, or handwritten under the central number.
 - Commitment number: may appear as "מספר התחייבות", "דרישה", or (Leumit only) "דגימה".
   The word "דגימה" appears on most forms with other meanings; treat it as a commitment
-  number only on Leumit forms. A form may have several commitment numbers: keep all.
+  number only on Leumit forms, or on a form that states the sample number is the commitment
+  number ("מספר הדגימה מהווה מספר התחייבות", e.g. Rambam). A form may have several commitment numbers: keep all.
 - A field that cannot be read is left empty (null). Never guess a value.
 
 ## Pipeline

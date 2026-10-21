@@ -29,6 +29,12 @@ A form may have several central numbers — return ALL of them.
 
 Special handwritten notation: "947054-25.8" means central number 947054 and received date day=25, month=8.
 In that case extract both the central number and the received date from that single annotation.
+A handwritten 6-digit number with a short date next to or under it (e.g. "944619" over "13.8.26") is the
+central number plus the received date, the same as the "947054-25.8" notation.
+
+A central number is always a standalone 6-digit number. NEVER form a central number by cutting a longer
+number (e.g. do not take 944000 from the sample/commitment number 944000361). If the only candidate is
+part of a longer number, set the central number to null.
 
 ## Received date (תאריך התקבל)
 
@@ -81,7 +87,9 @@ Closed sender list:
 A commitment number is a unique authorization number. It may be labeled:
 - "מספר התחייבות" (most HMOs)
 - "דרישה" (some hospitals)
-- "דגימה" — ONLY on Leumit forms. On all other forms, "דגימה" refers to sample type, not a commitment number.
+- "דגימה" — a commitment number ONLY on Leumit forms, or on any form that itself states that the sample number
+  is the commitment number (e.g. "מספר הדגימה מהווה מספר התחייבות", as on Rambam forms): then the printed
+  "מספר דגימה" goes in commitment_numbers. On all other forms, "דגימה" refers to sample type, not a commitment number.
 
 A form may have several commitment numbers — return ALL of them.
 
