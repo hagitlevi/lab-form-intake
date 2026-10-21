@@ -34,17 +34,27 @@ One record per commitment number; patient fields live on the form and are shared
 2. Per page, in parallel (LOCAL_WORKERS): digital-PDF check (text layer AND no full-page image);
    if scanned: preprocess (rotate, deskew, clean) → OCR words with bounding boxes → barcodes.
    If digital: take text from the PDF instead of preprocessing and OCR.
-3. Group pages into forms, checks in order, stop at first match:
-   central barcode found → new form;
-   6-digit central number in OCR text, or undecodable barcode region → new form, flagged "barcode unread";
-   "Page/עמוד n of/מתוך m" with n > 1 → continuation;
-   form title, or a national ID different from the previous page → new form, flagged;
-   first page of the batch → error shown to the user;
-   otherwise → continuation of the previous page. Continuations may cross file boundaries.
+3. Group pages into forms (see Grouping).
 4. Per form, in parallel (AI_WORKERS): ONE multimodal call with all page images of that form.
    The response may contain several forms if the group actually holds different patients.
 5. Validate and score each field (see Confidence).
 6. Save as pending records; the technician reviews, corrects, approves.
+
+## Grouping
+Default: a page starts a new form. Checks in order, stop at first match:
+1. a decoded 6-digit barcode → new form. Not necessarily the central number itself (some
+   6-digit barcodes are commitment numbers, e.g. Bnei Zion) - just a grouping signal;
+2. a 6-digit number directly next to a printed "מרכזי" in OCR text (also OCR a crop around
+   each barcode rotated 90°/270°, since the label is often printed sideways) → new form;
+3. "Page/עמוד n of/מתוך m" with n > 1 → continuation of the previous page;
+4. otherwise → new form.
+Continuations may cross file boundaries. A first page of the batch reporting n > 1 (no
+previous page to continue) → new form, flagged.
+Only printed barcodes and printed OCR text decide this - never handwriting, highlighter
+color, or blue handwritten IDs. Not used in the decision (though extracted values may still
+be kept as informational fields): form titles, "מספר התחייבות", patient stickers, national ID
+changes, case numbers, form codes, and any "fall back to continuation" rule. A wrong merge of
+two forms is worse than a wrong split, so the default is to split, not to merge.
 
 ## Confidence (per field, positive checks; any "no" → flagged for review)
 AI found a value? → value passes the rules? → (central number only) barcode agrees?

@@ -11,14 +11,24 @@ import numpy as np
 import pymupdf
 import pytesseract
 import zxingcpp
+from dotenv import load_dotenv
+
+# Loaded directly (not via backend.config) so this module works standalone, without DATABASE_URL.
+load_dotenv()
+
+# Windows ships no tesseract on PATH by default; fall back to the common install location.
+_tesseract_cmd = os.environ.get("TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+if os.path.exists(_tesseract_cmd):
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_cmd
+
+# TESSDATA_PREFIX (if set, in .env or the shell) is read by the tesseract subprocess itself -
+# only needed when heb/eng/osd traineddata aren't in tesseract's own tessdata dir, e.g. no
+# admin rights to write into Program Files.
 
 DPI = 300
 BLANK_INK_RATIO = 0.001  # fraction of non-white pixels below which a page counts as blank
 DIGITAL_IMAGE_COVERAGE = 0.8  # a single image covering more than this fraction means "scanned"
 CENTRAL_PROXIMITY_PX = 400  # how close (px, at DPI) an OCR word must be to a barcode to confirm it
-
-if os.environ.get("TESSERACT_CMD"):
-    pytesseract.pytesseract.tesseract_cmd = os.environ["TESSERACT_CMD"]
 
 
 @dataclass
@@ -38,6 +48,7 @@ class Word:
     top: int
     width: int
     height: int
+    rotation: int = 0  # 0 for the main OCR pass, 90/270 for a rotated crop around a barcode
 
 
 @dataclass
@@ -76,15 +87,21 @@ def is_digital_page(page: pymupdf.Page) -> bool:
     return True
 
 
-def split_files(paths: list[str]) -> list[Page]:
-    """Open each file (PDF or image) in order and return their non-blank pages, in order."""
+def split_files(paths: list[str]) -> tuple[list[Page], list[dict]]:
+    """Open each file (PDF or image) in order; return (non-blank pages, skipped blank pages).
+
+    Blank pages are reported, not dropped silently - skipped is a list of
+    {"source": ..., "page_number": ...} for each one, in the same order they occur.
+    """
     pages: list[Page] = []
+    skipped: list[dict] = []
     for path in paths:
         doc = pymupdf.open(path)
         for i in range(doc.page_count):
             fitz_page = doc[i]
             image = _page_image(fitz_page)
             if _is_blank(image):
+                skipped.append({"source": path, "page_number": i + 1})
                 continue
             pages.append(
                 Page(
@@ -97,7 +114,7 @@ def split_files(paths: list[str]) -> list[Page]:
             )
         # keep `doc` alive for as long as pages reference data copied out of it - not needed here
         # since _page_image() and get_text() already copied everything into plain Python objects.
-    return pages
+    return pages, skipped
 
 
 def _rotate_image(image: np.ndarray, angle: int) -> np.ndarray:
@@ -229,14 +246,45 @@ def _word_near(word: Word, rect: tuple, radius: int) -> bool:
     return ((bcx - wcx) ** 2 + (bcy - wcy) ** 2) ** 0.5 <= radius
 
 
-def _is_central(value: str, rect: tuple, ocr_words: list[Word]) -> bool:
+def barcode_crop_words(gray: np.ndarray, rect: tuple, margin: int = CENTRAL_PROXIMITY_PX) -> list[Word]:
+    """OCR a 90deg/270deg-rotated crop around a barcode, to catch sideways labels like 'מרכזי'
+    printed beside the sticker. Returns words mapped back into the full page's coordinates."""
+    h, w = gray.shape[:2]
+    bx, by, bw, bh = rect
+    x0, y0 = max(0, int(bx - margin)), max(0, int(by - margin))
+    x1, y1 = min(w, int(bx + bw + margin)), min(h, int(by + bh + margin))
+    crop = gray[y0:y1, x0:x1]
+    crop_h, crop_w = crop.shape[:2]
+
+    words = []
+    for angle in (90, 270):
+        rotated = _rotate_image(crop, angle)
+        for word in run_ocr(rotated):
+            lx0, ly0 = _unrotate_point(word.left, word.top, angle, crop_w, crop_h)
+            lx1, ly1 = _unrotate_point(word.left + word.width, word.top + word.height, angle, crop_w, crop_h)
+            words.append(
+                Word(
+                    text=word.text,
+                    conf=word.conf,
+                    left=x0 + round(min(lx0, lx1)),
+                    top=y0 + round(min(ly0, ly1)),
+                    width=round(abs(lx1 - lx0)),
+                    height=round(abs(ly1 - ly0)),
+                    rotation=angle,
+                )
+            )
+    return words
+
+
+def _is_central(value: str, rect: tuple, ocr_words: list[Word], gray: np.ndarray) -> bool:
     if len(value) != 6 or not value.isdigit():
         return False
     nearby = [w for w in ocr_words if _word_near(w, rect, CENTRAL_PROXIMITY_PX)]
+    nearby += barcode_crop_words(gray, rect)  # the label is often printed sideways
     return any(w.text.strip() == "מרכזי" or w.text.strip() == value for w in nearby)
 
 
-def read_barcodes(image: np.ndarray, ocr_words: list[Word]) -> list[Barcode]:
+def read_barcodes(image: np.ndarray, gray: np.ndarray, ocr_words: list[Word]) -> list[Barcode]:
     h, w = image.shape[:2]
 
     results = _decode(image)
@@ -274,7 +322,7 @@ def read_barcodes(image: np.ndarray, ocr_words: list[Word]) -> list[Barcode]:
                 value=result.text,
                 format=str(result.format),
                 rect=rect,
-                is_central=_is_central(result.text, rect, ocr_words),
+                is_central=_is_central(result.text, rect, ocr_words, gray),
             )
         )
     return barcodes
