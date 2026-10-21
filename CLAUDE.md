@@ -57,8 +57,12 @@ changes, case numbers, form codes, and any "fall back to continuation" rule. A w
 two forms is worse than a wrong split, so the default is to split, not to merge.
 
 ## Confidence (per field, positive checks; any "no" → flagged for review)
-AI found a value? → value passes the rules? → (central number only) barcode agrees?
-→ exact same value found by another source (OCR words, or barcode for central numbers)? → SAFE.
+AI found a value? → value passes the rules? → exact same value found by another source
+(OCR words, or barcode for central numbers)? → SAFE.
+Central number rules, in order: no value → "לא נמצא מספר מרכזי"; not exactly 6 digits → flagged;
+a decoded 6-digit barcode equal to the value → safe (barcode is the second source); a decoded 6-digit
+barcode that differs → "הברקוד בעמוד לא תואם", unless that barcode equals one of the form's commitment
+numbers (Bnei Zion), which is ignored; no usable barcode → NOT a flag reason, normal OCR second-source check.
 Near match (one character different) is flagged and the differing character is reported.
 Rules: Israeli ID check digit (pad to 9), date valid and not in the future,
 sender in the closed list (fuzzy match), commitment number format per sender when known.

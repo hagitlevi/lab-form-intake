@@ -111,22 +111,42 @@ class TestScoreForm(unittest.TestCase):
         conf = score_form(form, [page([word("123456782", 0, 0)])], TODAY)
         self.assertEqual(conf.national_id.state, "safe")
 
-    def test_central_number_contradicted_by_barcode_is_review(self):
-        form = ExtractedForm(page_indexes=[0], central_numbers=[FieldValue(value="936158")])
-        conf = score_form(form, [page([], [barcode("939158")])], TODAY)
-        self.assertEqual(conf.central_numbers[0].state, "review")
-        self.assertIn("מספר אחר", conf.central_numbers[0].reasons[0])
+    def _central(self, value, pages, commitments=()):
+        form = ExtractedForm(
+            page_indexes=[0], central_numbers=[FieldValue(value=value)],
+            commitment_numbers=[FieldValue(value=c) for c in commitments],
+        )
+        return score_form(form, pages, TODAY).central_numbers[0]
 
-    def test_central_number_safe_when_barcode_agrees(self):
-        form = ExtractedForm(page_indexes=[0], central_numbers=[FieldValue(value="939376")])
-        conf = score_form(form, [page([word("939376", 0, 0)], [barcode("939376")])], TODAY)
-        self.assertEqual(conf.central_numbers[0].state, "safe")
+    def test_central_1_no_value_is_not_found(self):
+        form = ExtractedForm(page_indexes=[0], central_numbers=[FieldValue(value=None)])
+        r = score_form(form, [page([], [])], TODAY).central_numbers[0]
+        self.assertEqual((r.state, r.reasons), ("review", [NOT_FOUND]))
 
-    def test_central_number_with_no_barcode_at_all_is_review(self):
-        form = ExtractedForm(page_indexes=[0], central_numbers=[FieldValue(value="939158")])
-        conf = score_form(form, [page([word("939158", 0, 0)])], TODAY)
-        self.assertEqual(conf.central_numbers[0].state, "review")
-        self.assertIn("אין ברקוד", conf.central_numbers[0].reasons[0])
+    def test_central_2_not_six_digits_is_review(self):
+        r = self._central("93937", [page([word("93937", 0, 0)], [])])
+        self.assertEqual(r.state, "review")
+        self.assertIn("6 ספרות", r.reasons[0])
+
+    def test_central_3_no_barcode_falls_back_to_ocr(self):
+        r = self._central("939158", [page([word("939158", 0, 0)], [])])
+        self.assertEqual(r.state, "safe")
+        r = self._central("939158", [page([], [])])
+        self.assertEqual((r.state, r.reasons), ("review", ["לא אומת על ידי מקור נוסף"]))
+
+    def test_central_4_matching_barcode_is_safe_with_barcode_bbox(self):
+        r = self._central("939376", [page([], [barcode("939376", rect=(5, 6, 7, 8))])])
+        self.assertEqual((r.state, r.bbox), ("safe", (5, 6, 7, 8)))
+
+    def test_central_5_different_barcode_is_review(self):
+        r = self._central("936158", [page([word("936158", 0, 0)], [barcode("939158")])])
+        self.assertEqual((r.state, r.reasons), ("review", ["הברקוד בעמוד לא תואם"]))
+
+    def test_central_5_barcode_equal_to_commitment_number_is_ignored(self):
+        pages = [page([word("260630", 0, 0)], [barcode("123456")])]
+        self.assertEqual(self._central("260630", pages, commitments=["123456"]).state, "safe")
+        self.assertEqual(self._central("260630", [page([], [barcode("123456")])], commitments=["123456"]).reasons,
+                         ["לא אומת על ידי מקור נוסף"])
 
     def test_empty_central_numbers_list_yields_one_missing_entry(self):
         form = ExtractedForm(page_indexes=[0])

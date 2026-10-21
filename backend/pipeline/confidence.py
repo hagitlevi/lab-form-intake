@@ -6,7 +6,8 @@ stops the chain and the field is "review":
   1. value found?
   2. value passes the rules? (ID check digit; date valid & not future, and not
      year_inferred/visit_date; sender in the closed list; commitment format per sender)
-  3. (central numbers only) a decoded barcode on this form's pages agrees?
+  3. (central numbers only) exactly 6 digits, and no conflicting decoded 6-digit barcode?
+     (a missing barcode is NOT a reason; a barcode equal to a commitment number is ignored)
   4. the exact same (normalized) value is read by a second source - an OCR word (also
      checking adjacent words concatenated, for numbers split by spaces) or a barcode for
      central numbers? A same-length one-character-off candidate counts as "review" too
@@ -179,16 +180,6 @@ def find_match(value: str, pages: list[PageData], normalize_fn) -> Match:
     return Match("none")
 
 
-def find_barcode_match(value: str, pages: list[PageData]) -> Match:
-    barcodes = [(b, p.page_number, p.source) for p in pages for b in p.barcodes]
-    for b, page_number, source in barcodes:
-        if b.value.strip() == value:
-            return Match("exact", b.rect, page_number, source)
-    if barcodes:
-        return Match("none", reason="הברקוד בעמוד מראה מספר אחר")
-    return Match("none", reason="אין ברקוד מאשר בעמוד")
-
-
 # --- Per-field scoring ----------------------------------------------------------
 
 def _score_text_field(raw_value: Optional[str], pages: list[PageData], normalize_fn) -> FieldResult:
@@ -261,22 +252,36 @@ def score_sender(fv: Optional[FieldValue], pages: list[PageData]) -> FieldResult
     return FieldResult(value=matched, state="review", reasons=["לא אומת על ידי מקור נוסף"])
 
 
-def score_central_number(fv: FieldValue, pages: list[PageData]) -> FieldResult:
+def score_central_number(fv: FieldValue, pages: list[PageData], commitment_values: list[str] = ()) -> FieldResult:
+    """No value -> review; not exactly 6 digits -> review; a decoded 6-digit barcode equal to
+    the value -> safe; a different 6-digit barcode -> review, unless that barcode is one of
+    the form's commitment numbers (Bnei Zion) and then ignored; no usable barcode (the common
+    case) -> the same OCR second-source check as every other field."""
     if not fv.value:
         return _missing()
     value = normalize_digits(fv.value)
-    barcode_match = find_barcode_match(value, pages)
-    if barcode_match.kind != "exact":
-        return FieldResult(value=value, state="review", reasons=[barcode_match.reason])
-    # barcode agrees - still look for an OCR word too, for the bbox (barcode is itself a
-    # valid "second source", so this is already past the exact-match gate)
+    if not re.fullmatch(r"\d{6}", value):
+        return FieldResult(value=value, state="review", reasons=["מספר מרכזי חייב להכיל 6 ספרות"])
+
+    commitments = {normalize_digits(c) for c in commitment_values}
+    barcodes = [(b, p.page_number, p.source) for p in pages for b in p.barcodes]
+    six = [(b, n, src) for b, n, src in barcodes if re.fullmatch(r"\d{6}", b.value.strip()) and b.value.strip() not in commitments]
+
     ocr_match = find_match(value, pages, normalize_digits)
-    bbox, page, source = (
-        (ocr_match.bbox, ocr_match.page, ocr_match.source)
-        if ocr_match.kind == "exact"
-        else (barcode_match.bbox, barcode_match.page, barcode_match.source)
-    )
-    return FieldResult(value=value, state="safe", bbox=bbox, page=page, source=source)
+    for b, n, src in six:
+        if b.value.strip() == value:
+            # barcode is the second source; keep the OCR word's bbox when there is one
+            if ocr_match.kind == "exact":
+                return FieldResult(value=value, state="safe", bbox=ocr_match.bbox, page=ocr_match.page, source=ocr_match.source)
+            return FieldResult(value=value, state="safe", bbox=b.rect, page=n, source=src)
+    if six:
+        return FieldResult(value=value, state="review", reasons=["הברקוד בעמוד לא תואם"])
+
+    if ocr_match.kind == "exact":
+        return FieldResult(value=value, state="safe", bbox=ocr_match.bbox, page=ocr_match.page, source=ocr_match.source)
+    if ocr_match.kind == "near":
+        return FieldResult(value=value, state="review", reasons=[ocr_match.reason], bbox=ocr_match.bbox, page=ocr_match.page, source=ocr_match.source)
+    return FieldResult(value=value, state="review", reasons=["לא אומת על ידי מקור נוסף"])
 
 
 def score_commitment_number(fv: FieldValue, pages: list[PageData], sender: Optional[str]) -> FieldResult:
@@ -301,7 +306,7 @@ def score_form(form: ExtractedForm, pages: list[PageData], reference_date: date)
         first_name=_score_text_field(form.first_name.value if form.first_name else None, pages, normalize_hebrew_name),
         last_name=_score_text_field(form.last_name.value if form.last_name else None, pages, normalize_hebrew_name),
         national_id=score_national_id(form.national_id, pages),
-        central_numbers=[score_central_number(cn, pages) for cn in form.central_numbers] or [_missing()],
+        central_numbers=[score_central_number(cn, pages, [c.value for c in form.commitment_numbers if c.value]) for cn in form.central_numbers] or [_missing()],
         received_date=score_received_date(form.received_date, pages, reference_date),
         sender=sender_result,
         commitment_numbers=[score_commitment_number(cn, pages, sender_value) for cn in form.commitment_numbers] or [_missing()],
