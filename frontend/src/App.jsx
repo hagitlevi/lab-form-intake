@@ -52,8 +52,11 @@ export default function App() {
       <header className="header">
         <div className="header-inner">
           <div className="brand">
-            <b>המעבדה המרכזית לנגיפים</b>
-            <span>המרכז הרפואי שיבא</span>
+            <img src="/lab-logo.png" alt="" className="brand-logo" />
+            <div className="brand-text">
+              <b>המעבדה המרכזית לנגיפים</b>
+              <span>המרכז הרפואי שיבא</span>
+            </div>
           </div>
           <nav className="nav-links" aria-label="ניווט ראשי">
             <Link to={intakePath} className={'nav' + (onRecords || onStats ? '' : ' on')}>קליטת טפסים</Link>
