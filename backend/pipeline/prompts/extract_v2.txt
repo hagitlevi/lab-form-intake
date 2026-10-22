@@ -27,9 +27,8 @@ The patient's name is usually handwritten (often blue ink) next to the ID, in th
 "פרטי המבוטח/ת" box, or at the top of a hospital screen printout beside the ID. Read it and extract it:
 first word = first_name, the remaining words = last_name. Give your best reading of the handwritten
 letters even when messy (a technician reviews every name). If you cannot tell which word is which, or
-only one word is readable, put it all in last_name and leave first_name null. Extract whatever words are
-written, even if they look like placeholders: do not skip a name because it is small, loose or unusual.
-Set value to null only if there is no handwriting at all.
+only one word is readable, put it all in last_name and leave first_name null. Set value to null if there is no
+handwriting, or if the field holds only a generic placeholder such as "שם פרטי" / "שם משפחה".
 Only the patient's name counts: never use the name next to "מפיק/ת ההתחייבות", a doctor ("מרפאה"), or any printed name.
 Every first_name / last_name must be an object {value, raw_text, origin}, never a plain string.
 
