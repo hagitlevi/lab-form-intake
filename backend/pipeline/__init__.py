@@ -6,6 +6,7 @@ Plain functions, no FastAPI/DB involved - these operate on files and images only
 import os
 import time
 from dataclasses import dataclass, field
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -105,37 +106,42 @@ def is_digital_page(page: pymupdf.Page) -> bool:
     return True
 
 
+def load_page(doc: pymupdf.Document, path: str, i: int) -> Optional[Page]:
+    """Render page i (0-based) of an open document; None if it is blank."""
+    fitz_page = doc[i]
+    t0 = time.monotonic()
+    image = _page_image(fitz_page)
+    render_seconds = time.monotonic() - t0
+    if _is_blank(image) and _confirm_blank(image, fitz_page.get_text()):
+        return None
+    digital = is_digital_page(fitz_page)
+    return Page(
+        source=path,
+        page_number=i + 1,
+        image=image,
+        is_digital=digital,
+        pdf_text=fitz_page.get_text() if digital else "",
+        render_seconds=render_seconds,
+    )
+
+
 def split_files(paths: list[str]) -> tuple[list[Page], list[dict]]:
     """Open each file (PDF or image) in order; return (non-blank pages, skipped blank pages).
 
     Blank pages are reported, not dropped silently - skipped is a list of
     {"source": ..., "page_number": ...} for each one, in the same order they occur.
+    Holds every page image at once; the web app renders page by page instead (batch_runner).
     """
     pages: list[Page] = []
     skipped: list[dict] = []
     for path in paths:
-        doc = pymupdf.open(path)
-        for i in range(doc.page_count):
-            fitz_page = doc[i]
-            t0 = time.monotonic()
-            image = _page_image(fitz_page)
-            render_seconds = time.monotonic() - t0
-            if _is_blank(image) and _confirm_blank(image, fitz_page.get_text()):
-                skipped.append({"source": path, "page_number": i + 1})
-                continue
-            digital = is_digital_page(fitz_page)
-            pages.append(
-                Page(
-                    source=path,
-                    page_number=i + 1,
-                    image=image,
-                    is_digital=digital,
-                    pdf_text=fitz_page.get_text() if digital else "",
-                    render_seconds=render_seconds,
-                )
-            )
-        # keep `doc` alive for as long as pages reference data copied out of it - not needed here
-        # since _page_image() and get_text() already copied everything into plain Python objects.
+        with pymupdf.open(path) as doc:
+            for i in range(doc.page_count):
+                page = load_page(doc, path, i)
+                if page is None:
+                    skipped.append({"source": path, "page_number": i + 1})
+                else:
+                    pages.append(page)
     return pages, skipped
 
 
@@ -397,9 +403,11 @@ def read_barcodes(image: np.ndarray, gray: np.ndarray, ocr_words: list[Word]) ->
     results = _decode(image)
     rects = [_bbox(r) for r in results] if results else []
 
+    # fallbacks run on a grayscale copy: a 2x colour copy of a 300 DPI page is >100 MB (512 MB service)
+    plain = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if not results else None
     if not results:
-        for scale in (1.5, 2.0):
-            scaled = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        for scale in (1.5,):  # 2.0 found nothing on any sample and costs >100 MB of zxing buffers
+            scaled = cv2.resize(plain, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
             found = _decode(scaled)
             if found:
                 results = found
@@ -408,7 +416,7 @@ def read_barcodes(image: np.ndarray, gray: np.ndarray, ocr_words: list[Word]) ->
 
     if not results:
         for angle in (90, 180, 270):
-            rotated = _rotate_image(image, angle)
+            rotated = _rotate_image(plain, angle)
             found = _decode(rotated)
             if found:
                 results = found

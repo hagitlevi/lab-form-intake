@@ -27,7 +27,7 @@ from backend.pipeline.models import ExtractedForm, ExtractionResponse
 
 load_dotenv()
 
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 AI_MAX_IMAGE_PX = int(os.environ.get("AI_MAX_IMAGE_PX", "2048"))
 PROMPT_VERSION = "v3"
 TOOL_NAME = "extract_forms"
@@ -48,7 +48,9 @@ def _load_prompt() -> str:
     return _prompt_cache
 
 
-def _resize_to_jpeg(image: np.ndarray, max_px: int = AI_MAX_IMAGE_PX) -> bytes:
+def _resize_to_jpeg(image: "np.ndarray | bytes", max_px: int = AI_MAX_IMAGE_PX) -> bytes:
+    if isinstance(image, bytes):  # stored page JPEG: decoded one page at a time to keep memory low
+        image = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
     h, w = image.shape[:2]
     if max(h, w) > max_px:
         scale = max_px / max(h, w)
@@ -152,7 +154,7 @@ def _call_once(
         system=_load_prompt(),
         messages=messages,
         tools=[_tool_def()],
-        tool_choice={"type": "tool", "name": TOOL_NAME},
+        tool_choice={"type": "auto"},
     )
 
 

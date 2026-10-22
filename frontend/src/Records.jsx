@@ -38,6 +38,7 @@ export default function Records() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v11" /><path d="m7.5 10.5 4.5 4.5 4.5-4.5" /><path d="M4 18v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1" /></svg>
             ייצוא CSV
           </a>
+          <button className="btn btn-ghost" onClick={() => window.print()}>ייצוא PDF</button>
         </div>
       </div>
 

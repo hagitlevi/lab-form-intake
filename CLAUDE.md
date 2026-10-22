@@ -119,7 +119,13 @@ their metadata and the page images. Never store full OCR text, diagnoses, addres
 - DB: docker container labpg (postgres) on port 5433 (5432 is taken locally).
 - Tests: python -m unittest (pytest is not installed). Tools: python -m backend.tools.scan_pdf,
   python -m backend.tools.group_pdf, python -m backend.tools.e2e_api (server must be running).
-- samples/ is git-ignored (sample PDFs, grouping_truth.json, debug output).
+- Evaluation: python -m backend.tools.evaluate [--fresh] [--files ...] runs the batch pipeline without the DB and compares it with
+  samples/ground_truth.json, writing samples/eval_report.md (grouping, per-field and per-sender tables, every WRONG+SAFE and invented
+  value). It only measures: it never changes the pipeline. AI calls are made only for groups holding a "filled": true truth form.
+  --init-truth writes the empty template (never overwrites). Format: samples/GROUND_TRUTH_README.md.
+- Ground-truth rule: ground_truth.json is filled by a person looking at the forms, NEVER from pipeline, AI or OCR output.
+  null / [] = truly absent on the form; entries with "filled": false are skipped. Tests: tests/test_evaluate.py.
+- samples/ is git-ignored (sample PDFs, grouping_truth.json, ground_truth.json, debug output).
 - experiments/ holds side experiments (e.g. hw_ocr handwriting OCR); not part of the app.
 
 ## Conventions

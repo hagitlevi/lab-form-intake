@@ -13,18 +13,20 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
+import pymupdf
 from psycopg.types.json import Json
 
 from backend.config import AI_WORKERS, LOCAL_WORKERS
 from backend.db import pool
 from backend.grouping import FormGroup, group_pages, page_facts_from_ocr
-from backend.pipeline import split_files
+from backend.pipeline import load_page
 from backend.pipeline.confidence import FieldResult, FormConfidence, PageData, _missing, score_form
 from backend.pipeline.extract import extract_form
 from backend.pipeline.models import ExtractedForm
-from backend.pipeline.scan import scan_pages
+from backend.pipeline.scan import _failed_scan, scan_page
 
 log = logging.getLogger(__name__)
 
@@ -129,58 +131,64 @@ def process_batch(batch_id: int, file_paths: list[str], file_id_by_position: dic
             _update_batch(conn, batch_id, status="interrupted", error=f"{type(exc).__name__}: {exc}")
 
 
-def _run_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[int, int]) -> None:
-    pages, skipped = split_files(file_paths)
+def _scan_one_page(path: str, index: int):
+    """Render + scan one page and drop its big images straight away: returns None for a blank
+    page, else (page_number, jpeg_bytes, words, barcodes, error). Only this keeps the web
+    service inside 512 MB - never hold more than LOCAL_WORKERS full-resolution pages."""
+    with pymupdf.open(path) as doc:
+        page = load_page(doc, path, index)
+    if page is None:
+        return None
+    try:
+        scan = scan_page(page)
+    except Exception as e:
+        scan = _failed_scan(page, f"{type(e).__name__}: {e}")
+    # field bboxes are in the oriented/deskewed space of scan.color, so store that
+    return page.page_number, _encode_image(scan.color), scan.words, scan.barcodes, scan.error
 
-    skipped_pages = [{"filename": Path(s["source"]).name, "page_index": s["page_number"]} for s in skipped]
+
+def _run_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[int, int]) -> None:
+    tasks = []  # (position, path, 0-based page index), in upload order
+    for position, path in enumerate(file_paths):
+        with pymupdf.open(path) as doc:
+            tasks += [(position, path, i) for i in range(doc.page_count)]
+    with pool.connection() as conn:
+        _update_batch(conn, batch_id, total_pages=len(tasks))
 
     page_ids: dict[tuple[str, int], int] = {}
-    with pool.connection() as conn:
-        _update_batch(conn, batch_id, total_pages=len(pages), skipped_pages=Json(skipped_pages))
-        for position, path in enumerate(file_paths):
-            file_id = file_id_by_position[position]
-            for page in pages:
-                if page.source != path:
-                    continue
-                page_bytes = _encode_image(page.image)
-                page_id = conn.execute(
-                    "INSERT INTO pages (batch_id, file_id, page_index, image) VALUES (%s, %s, %s, %s) RETURNING id",
-                    (batch_id, file_id, page.page_number, page_bytes),
-                ).fetchone()[0]
-                page_ids[(path, page.page_number)] = page_id
-        conn.commit()
-
+    skipped_pages, facts, ocr = [], [], {}
     pages_done = 0
-
-    def on_progress(page, elapsed: float, from_cache: bool) -> None:
-        nonlocal pages_done
-        pages_done += 1
-        with pool.connection() as conn:
-            _update_batch(conn, batch_id, pages_done=pages_done)
-
-    scans, _ = scan_pages(pages, max_workers=LOCAL_WORKERS, on_progress=on_progress)
+    with ThreadPoolExecutor(max_workers=LOCAL_WORKERS) as executor:
+        futures = [executor.submit(_scan_one_page, path, i) for _, path, i in tasks]
+        for n, (position, path, i) in enumerate(tasks):  # consumed in order, so ids follow page order
+            res = futures[n].result()
+            futures[n] = None  # release the page JPEG as soon as it is stored
+            with pool.connection() as conn:
+                if res is None:
+                    skipped_pages.append({"filename": Path(path).name, "page_index": i + 1})
+                else:
+                    page_number, image_bytes, words, barcodes, error = res
+                    page_ids[(path, page_number)] = conn.execute(
+                        "INSERT INTO pages (batch_id, file_id, page_index, image, error) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                        (batch_id, file_id_by_position[position], page_number, image_bytes, error),
+                    ).fetchone()[0]
+                    main_words = [w for w in words if w.rotation == 0]
+                    crop_words = [w for w in words if w.rotation != 0]
+                    key = SimpleNamespace(source=path, page_number=page_number)
+                    facts.append(page_facts_from_ocr(key, main_words, barcodes, crop_words))
+                    ocr[(path, page_number)] = (main_words, barcodes)
+                pages_done += 1
+                _update_batch(conn, batch_id, pages_done=pages_done)
 
     with pool.connection() as conn:
-        for page, scan in zip(pages, scans):
-            page_id = page_ids[(page.source, page.page_number)]
-            if scan.error:
-                conn.execute("UPDATE pages SET error = %s WHERE id = %s", (scan.error, page_id))
-            else:
-                # field bboxes are in the oriented/deskewed space of scan.color, so store that
-                conn.execute("UPDATE pages SET image = %s WHERE id = %s", (_encode_image(scan.color), page_id))
-        conn.commit()
+        _update_batch(conn, batch_id, total_pages=len(page_ids), pages_done=len(page_ids),
+                      skipped_pages=Json(skipped_pages))
 
-    facts = []
-    for page, scan in zip(pages, scans):
-        main_words = [w for w in scan.words if w.rotation == 0]
-        crop_words = [w for w in scan.words if w.rotation != 0]
-        facts.append(page_facts_from_ocr(page, main_words, scan.barcodes, crop_words))
     groups = group_pages(facts)
 
     with pool.connection() as conn:
         _update_batch(conn, batch_id, total_forms=len(groups))
 
-    scan_by_key = {(s.source, s.page_number): s for s in scans}
     today = date.today()
 
     def process_group(group: FormGroup) -> None:
@@ -188,13 +196,15 @@ def _run_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[i
             PageData(
                 source=pf.source,
                 page_number=pf.page_number,
-                words=[w for w in scan_by_key[(pf.source, pf.page_number)].words if w.rotation == 0],
-                barcodes=scan_by_key[(pf.source, pf.page_number)].barcodes,
+                words=ocr[(pf.source, pf.page_number)][0],
+                barcodes=ocr[(pf.source, pf.page_number)][1],
             )
             for pf in group.pages
         ]
-        group_images = [scan_by_key[(pf.source, pf.page_number)].color for pf in group.pages]
         group_page_ids = [page_ids[(pf.source, pf.page_number)] for pf in group.pages]
+        with pool.connection() as conn:  # stored JPEGs, decoded one at a time inside extract_form
+            group_images = [bytes(conn.execute("SELECT image FROM pages WHERE id = %s", (pid,)).fetchone()[0])
+                            for pid in group_page_ids]
 
         try:
             forms = extract_form(group_images, upload_date=today, group_flagged=group.flagged)
