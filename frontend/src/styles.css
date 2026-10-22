@@ -152,8 +152,19 @@ main.wide { max-width: 1600px; padding: 32px 24px; gap: 20px; }
 .link-btn { background: none; border: 0; padding: 4px 0; font: inherit; font-size: 14px; font-weight: 500; color: var(--primary); cursor: pointer; }
 .form-actions { display: flex; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--separator); padding-top: 16px; }
 .form-actions .btn-primary { flex: 1 1 auto; }
-.viewer { flex: 999 1 560px; min-width: 0; background: var(--seg-bg); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.viewer { flex: 999 1 560px; min-width: 0; background: var(--seg-bg); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 16px; }
 .viewer-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .viewer-tools { display: flex; gap: 8px; align-items: center; }
 .viewer-tools .icon-btn { width: 40px; height: 40px; border: 1px solid var(--border-strong); background: #fff; }
 .viewer-scroll { direction: ltr; overflow: auto; height: 72vh; display: flex; background: #fff; border-radius: 6px; }
+
+/* records screen */
+.search { position: relative; flex: 1 1 360px; max-width: 520px; }
+.search svg { position: absolute; inset-inline-start: 14px; top: 13px; }
+.search input { width: 100%; min-height: 44px; box-sizing: border-box; padding: 0 42px; border: 1px solid var(--border-strong); border-radius: 10px; font: inherit; font-size: 15px; background: #fff; color: var(--text); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+.badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 500; }
+.b-ok { background: #E5F3EA; color: #1D6B37; }
+.b-wait { background: #FFF3E6; color: #8A4500; }
+.tbl tr.clickable { cursor: pointer; }
+.tbl td .empty { color: var(--muted); }
