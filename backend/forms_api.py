@@ -11,7 +11,7 @@ import numpy as np
 from backend.batch_runner import persist_form
 from backend.grouping import FormGroup
 from backend.pipeline import read_barcodes, run_ocr
-from backend.pipeline.confidence import PageData, commitment_format_ok, score_form, sender_fuzzy_match, valid_israeli_id
+from backend.pipeline.confidence import PageData, commitment_format_ok, score_form, id_warning, sender_fuzzy_match
 from backend.pipeline.extract import extract_form
 from backend.pipeline.normalize import normalize_digits, pad_national_id
 
@@ -28,8 +28,7 @@ def _normalize_scalar(name: str, value, sender_value) -> tuple[str | None, list[
     if value is None:
         return None, []
     if name == "national_id":
-        padded = pad_national_id(value)
-        return padded, [] if valid_israeli_id(padded) else ["ספרת הביקורת של תעודת הזהות שגויה"]
+        return pad_national_id(value), []  # an invalid ID is only a warning (see below)
     if name == "sender":
         matched = sender_fuzzy_match(value)
         return (matched or value), ([] if matched else ["השולח אינו ברשימה הסגורה"])
@@ -119,6 +118,8 @@ def apply_patch(conn, form_id: int, patch: dict) -> dict:
             old = {"id": old_row[0], "value": old_row[1], "state": old_row[2], "reasons": old_row[3]} if old_row else None
             has_prior_patch = _has_prior_patch(conn, old["id"] if old else None)
             state, final_reasons = _resolve_state(norm_value, reasons, old, has_prior_patch)
+            if name == "national_id" and norm_value:
+                final_reasons = id_warning(norm_value)
             field_id = conn.execute(_UPSERT_FIELD, (form_id, name, 0, norm_value, state, final_reasons)).fetchone()[0]
             conn.execute(
                 "INSERT INTO audit_log (form_id, field_id, old_value, new_value) VALUES (%s, %s, %s, %s)",

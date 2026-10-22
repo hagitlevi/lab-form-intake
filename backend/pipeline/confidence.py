@@ -194,18 +194,26 @@ def _score_text_field(raw_value: Optional[str], pages: list[PageData], normalize
     return FieldResult(value=raw_value, state="review", reasons=["לא אומת על ידי מקור נוסף"])
 
 
+ID_WARNING = "מספר הזהות אינו תקין (ספרת ביקורת או אורך) - נשמר כפי שנקרא"
+
+
+def id_warning(padded: str) -> list[str]:
+    """A national ID that fails the check digit / 9-digit rule is a warning, not a review reason:
+    the number is kept exactly as read (never cut or changed)."""
+    return [] if valid_israeli_id(padded) else [ID_WARNING]
+
+
 def score_national_id(fv: Optional[FieldValue], pages: list[PageData]) -> FieldResult:
     if fv is None or not fv.value:
         return _missing()
     padded = pad_national_id(fv.value)
-    if not valid_israeli_id(padded):
-        return FieldResult(value=padded, state="review", reasons=["ספרת הביקורת של תעודת הזהות שגויה"])
+    warn = id_warning(padded)
     match = find_match(padded, pages, normalize_digits)
     if match.kind == "exact":
-        return FieldResult(value=padded, state="safe", bbox=match.bbox, page=match.page, source=match.source)
+        return FieldResult(value=padded, state="safe", reasons=warn, bbox=match.bbox, page=match.page, source=match.source)
     if match.kind == "near":
-        return FieldResult(value=padded, state="review", reasons=[match.reason], bbox=match.bbox, page=match.page, source=match.source)
-    return FieldResult(value=padded, state="review", reasons=["לא אומת על ידי מקור נוסף"])
+        return FieldResult(value=padded, state="review", reasons=[match.reason, *warn], bbox=match.bbox, page=match.page, source=match.source)
+    return FieldResult(value=padded, state="review", reasons=["לא אומת על ידי מקור נוסף", *warn])
 
 
 def score_received_date(dv: Optional[DateValue], pages: list[PageData], reference: date) -> FieldResult:

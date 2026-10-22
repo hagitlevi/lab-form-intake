@@ -5,19 +5,25 @@ import { SHARED, call, errText, patchBody, patchField, rowReview, useFieldEdit }
 const HEADERS = ["עמ'", 'שם פרטי', 'שם משפחה', 'ת״ז', 'מספר מרכזי', 'תאריך קבלה', 'גורם שולח', 'מספר התחייבות', '']
 const NUMERIC = new Set(['national_id', 'central_numbers', 'received_date', 'commitment_number'])
 
-function Cell({ field, numeric, onSave, listId }) {
+function Cell({ field, numeric, onSave, options }) {
   const [editing, setEditing] = useState(false)
   const value = field.value ?? ''
   const review = field.state === 'review'
-  const { setDraft, err, commit, inputProps } = useFieldEdit(value, onSave)
+  const { setDraft, err, setErr, commit, inputProps } = useFieldEdit(value, onSave)
 
   const shown = review && value === '' ? <span className="empty">ריק</span> : numeric ? value.split(' ').map((v, i) => <span key={i} className="num">{v}</span>) : value
   return (
     <div className={'cellbox' + (review ? ' review' : '')} data-review={review ? '1' : undefined}
       onClick={() => { if (!editing) { setDraft(value); setEditing(true) } }}>
-      {editing ? (
-        <input autoFocus dir={numeric ? 'ltr' : undefined} list={listId}
-          {...inputProps(() => setEditing(false))} />
+      {editing && options ? (
+        <select autoFocus ref={(el) => { try { el?.showPicker() } catch { /* needs a user gesture */ } }} value={value} onBlur={() => setEditing(false)}
+          onChange={async (e) => { const m = await onSave(e.target.value || null); if (m) setErr(m); else setEditing(false) }}>
+          <option value="">—</option>
+          {value && !options.includes(value) && <option value={value}>{value}</option>}
+          {options.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      ) : editing ? (
+        <input autoFocus dir={numeric ? 'ltr' : undefined} {...inputProps(() => setEditing(false))} />
       ) : (
         <>
           {shown}
@@ -25,8 +31,8 @@ function Cell({ field, numeric, onSave, listId }) {
         </>
       )}
       {review && field.reasons?.map((r, i) => <span key={i} className="reason">לבדיקה · {r}</span>)}
-      {review && !editing && field.reasons?.length > 0 && <div className="hint">Enter נוסף לאישור בכל זאת</div>}
-      {field.state === 'corrected' && field.reasons?.map((r, i) => <div key={i} className="warn">{r}</div>)}
+      {review && !editing && !options && field.reasons?.length > 0 && <div className="hint">Enter נוסף לאישור בכל זאת</div>}
+      {!review && field.reasons?.map((r, i) => <div key={i} className="warn">{r}</div>)}
       {err && <div className="err">{err}</div>}
       {review && value === '' && !editing && (
         <button className="btn btn-ghost btn-sm confirm" onClick={async (e) => { e.stopPropagation(); if (await commit(true)) setEditing(false) }}>אישור כריק</button>
@@ -205,7 +211,6 @@ export default function Review({ id }) {
         <span className="toolbar-hint">לחיצה על תא פותחת עריכה</span>
       </div>
 
-      <datalist id="senders">{senders.map((s) => <option key={s} value={s} />)}</datalist>
       <div className="table-wrap">
       <table className="tbl">
         <colgroup>
@@ -219,7 +224,7 @@ export default function Review({ id }) {
             const prev = formIds[formIds.indexOf(fid) - 1]
             const sharedCell = (n) => (
               <td className="cell" key={n}>
-                <Cell field={r[n]} numeric={NUMERIC.has(n)} listId={n === 'sender' ? 'senders' : undefined}
+                <Cell field={r[n]} numeric={NUMERIC.has(n)} options={n === 'sender' ? senders : undefined}
                   onSave={patch(fid, (v) => patchBody(n, 0, v))} />
               </td>
             )

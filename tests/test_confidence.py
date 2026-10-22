@@ -8,6 +8,7 @@ from datetime import date
 
 from backend.pipeline import Barcode, Word
 from backend.pipeline.confidence import (
+    ID_WARNING,
     NOT_FOUND,
     PageData,
     commitment_format_ok,
@@ -99,12 +100,18 @@ class TestScoreForm(unittest.TestCase):
         self.assertEqual(conf.national_id.reasons, [NOT_FOUND])
         self.assertEqual(conf.national_id.value, "")
 
-    def test_id_matches_ocr_exactly_but_fails_check_digit_is_review(self):
-        # required by spec: exact OCR confirmation must NOT override a failed rule
+    def test_invalid_id_confirmed_by_ocr_is_safe_with_warning(self):
         form = ExtractedForm(page_indexes=[0], national_id=FieldValue(value="123456783"))
         conf = score_form(form, [page([word("123456783", 0, 0)])], TODAY)
-        self.assertEqual(conf.national_id.state, "review")
-        self.assertIn("ספרת הביקורת", conf.national_id.reasons[0])
+        self.assertEqual(conf.national_id.state, "safe")
+        self.assertEqual(conf.national_id.reasons, [ID_WARNING])
+
+    def test_ten_digit_id_is_kept_whole(self):
+        form = ExtractedForm(page_indexes=[0], national_id=FieldValue(value="0011223344"))
+        conf = score_form(form, [page([word("0011223344", 0, 0)])], TODAY)
+        self.assertEqual(conf.national_id.value, "0011223344")
+        self.assertEqual(conf.national_id.state, "safe")
+        self.assertEqual(conf.national_id.reasons, [ID_WARNING])
 
     def test_id_safe_when_valid_and_confirmed(self):
         form = ExtractedForm(page_indexes=[0], national_id=FieldValue(value="123456782"))

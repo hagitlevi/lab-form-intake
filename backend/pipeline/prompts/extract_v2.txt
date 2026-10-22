@@ -6,7 +6,9 @@ Your job is to extract structured data and return it via the extract_forms tool.
 
 - first_name (שם פרטי): patient's first name.
 - last_name (שם משפחה): patient's last name.
-- national_id (תעודת זהות / ת"ז): Israeli ID number, 9 digits (may be shown with fewer leading zeros on the form).
+- national_id (תעודת זהות / ת"ז): Israeli ID number, normally 9 digits (may be shown with fewer leading zeros on the form).
+  Copy every digit exactly as written, even if there are more or fewer than 9 or it looks invalid: never cut,
+  drop or add digits to make it fit. The system checks validity and warns; you only transcribe.
   Do NOT confuse this with "מקרה" (case/visit number) - that is an internal hospital case number, not the patient's ID,
   even though it's also a plain digit string and often printed right next to the ID field on hospital screen printouts.
 - central_numbers (מספר מרכזי): one or more 6-digit lab sticker numbers. See rules below.

@@ -48,7 +48,7 @@ function Field({ f, onSave, onSelect, onRemove, senders, reg }) {
       </div>
       {review && f.reasons.map((r, i) => <span key={i} className="reason">לבדיקה · {r}</span>)}
       {review && f.reasons.length > 0 && f.name !== 'sender' && <span className="hint">Enter נוסף לאישור בכל זאת</span>}
-      {f.state === 'corrected' && f.reasons.map((r, i) => <span key={i} className="warn">{r}</span>)}
+      {!review && f.reasons.map((r, i) => <span key={i} className="warn">{r}</span>)}
       {review && value === '' && (
         <button className="btn btn-ghost btn-sm confirm" onClick={async () => { await commit(true) }}>אישור כריק</button>
       )}
