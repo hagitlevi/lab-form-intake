@@ -86,11 +86,12 @@ a decoded 6-digit barcode equal to the value → safe (barcode is the second sou
 barcode that differs → "הברקוד בעמוד לא תואם", unless that barcode equals one of the form's commitment
 numbers (Bnei Zion), which is ignored; no usable barcode → NOT a flag reason, normal OCR second-source check.
 Near match (one character different) is flagged and the differing character is reported.
-Rules: Israeli ID check digit (pad to 9), date valid and not in the future,
+Rules: Israeli ID check digit (pad to 9; an invalid or longer-than-9 ID is NOT a review reason: it is kept exactly
+as read, state unchanged, with a warning note - never cut), date valid and not in the future,
 sender in the closed list (fuzzy match), commitment number format per sender when known.
 Only two states are shown in the UI: safe or "for review" (orange), always with a reason in Hebrew.
-Manual edit: a typed value that fails validation stays orange with the error; pressing Enter again
-with the same value accepts it ("אושר ידנית למרות שגיאת אימות"), recorded in the audit log.
+Manual edit: a typed value that fails validation (other than the national ID, which only gets the warning)
+stays orange with the error; pressing Enter again with the same value accepts it ("אושר ידנית למרות שגיאת אימות"), recorded in the audit log.
 
 ## API
 POST /api/batches, GET /api/batches/{id}, GET /api/pages/{id}/image, PATCH /api/forms/{id}
