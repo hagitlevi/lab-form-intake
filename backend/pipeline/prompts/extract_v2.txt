@@ -105,6 +105,9 @@ A commitment number is a unique authorization number. It may be labeled:
   "מספר דגימה" goes in commitment_numbers. On all other forms, "דגימה" refers to sample type, not a commitment number.
 
 A form may have several commitment numbers — return ALL of them.
+A commitment number may also be printed next to a barcode (a barcode sticker that carries no word "מרכזי").
+Such a number is a commitment number, NOT a central number. Only a number with the word "מרכזי" beside it
+(printed or handwritten) is a central number; a barcode alone does not make a number central.
 
 Format notes by sender:
 - Clalit (כללית): typically 9 digits, e.g. 141046589

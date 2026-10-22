@@ -282,6 +282,10 @@ def run_ocr(gray_image: np.ndarray, lang: str = "heb+eng", config: str = "", sca
     image = gray_image
     if scale != 1:
         image = cv2.resize(gray_image, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    if os.environ.get("OCR_ENGINE", "tesseract").lower() == "google":  # experiment, see google_ocr.py
+        from backend.pipeline.google_ocr import google_ocr
+
+        return google_ocr(image, scale)
     data = pytesseract.image_to_data(
         image, lang=lang, config=config, output_type=pytesseract.Output.DICT, timeout=TESSERACT_TIMEOUT_S
     )

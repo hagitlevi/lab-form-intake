@@ -29,7 +29,8 @@ load_dotenv()
 
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 AI_MAX_IMAGE_PX = int(os.environ.get("AI_MAX_IMAGE_PX", "2048"))
-PROMPT_VERSION = "v3"
+PROMPT_VERSION = "v4"
+AI_BLUE_CROPS = os.environ.get("AI_BLUE_CROPS", "0").lower() in ("1", "true", "yes")
 TOOL_NAME = "extract_forms"
 CACHE_DIR = Path("samples/debug/ai_cache")
 AI_CACHE = os.environ.get("AI_CACHE", "").lower() in ("1", "true", "yes")  # dev only: cache holds patient fields
@@ -59,6 +60,37 @@ def _resize_to_jpeg(image: "np.ndarray | bytes", max_px: int = AI_MAX_IMAGE_PX) 
     if not ok:
         raise RuntimeError("JPEG encode failed")
     return buf.tobytes()
+
+
+def blue_ink_crops(image: "np.ndarray | bytes", max_crops: int = 3, target_h: int = 360) -> list[bytes]:
+    """Enlarged crops (JPEG) of the blue handwriting on a page, cut from the full-resolution
+    colour image. The patient name/ID is small, faint blue ink that vanishes when the whole
+    page is shrunk to AI_MAX_IMAGE_PX; black print and yellow highlighter are not blue."""
+    if isinstance(image, bytes):  # stored page JPEG
+        image = cv2.imdecode(np.frombuffer(image, np.uint8), cv2.IMREAD_COLOR)
+    b, r = image[..., 0].astype(np.int16), image[..., 2].astype(np.int16)
+    mask = ((b - r > 40) & (r < 180)).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
+    h, w = mask.shape
+    k = max(15, w // 40)  # merge letters and words of one handwritten block
+    merged = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_RECT, (k * 3, k)))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(merged)
+    blocks = []
+    for i in range(1, n):
+        x, y, bw, bh, _ = stats[i]
+        ink = int(mask[y:y + bh, x:x + bw].sum())
+        if ink >= 150:
+            blocks.append((ink, x, y, bw, bh))
+    out = []
+    for _, x, y, bw, bh in sorted(blocks, reverse=True)[:max_crops]:
+        pad = max(20, bh // 2)
+        crop = image[max(0, y - pad):min(h, y + bh + pad), max(0, x - pad):min(w, x + bw + pad)]
+        scale = min(4.0, max(1.0, target_h / crop.shape[0]))
+        crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        ok, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        if ok:
+            out.append(buf.tobytes())
+    return out
 
 
 def _cache_key(images_bytes: list[bytes], model: str) -> str:
@@ -100,20 +132,21 @@ def _tool_def() -> dict:
     }
 
 
-def _build_user_content(images_bytes: list[bytes]) -> list[dict]:
+def _image_block(b: bytes) -> dict:
+    return {
+        "type": "image",
+        "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.standard_b64encode(b).decode()},
+    }
+
+
+def _build_user_content(images_bytes: list[bytes], crops: Optional[list[list[bytes]]] = None) -> list[dict]:
     content: list[dict] = []
     for i, b in enumerate(images_bytes):
         content.append({"type": "text", "text": f"Page {i} (0-indexed):"})
-        content.append(
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": base64.standard_b64encode(b).decode(),
-                },
-            }
-        )
+        content.append(_image_block(b))
+        for j, c in enumerate((crops or [[]] * len(images_bytes))[i]):
+            content.append({"type": "text", "text": f"Page {i}, enlarged crop {j + 1} of the blue handwriting on this page:"})
+            content.append(_image_block(c))
     content.append(
         {"type": "text", "text": "Extract all commitment forms from these pages using the extract_forms tool."}
     )
@@ -176,6 +209,7 @@ def _run_with_retry(
     client: anthropic.Anthropic,
     images_bytes: list[bytes],
     model: str,
+    crops: Optional[list[list[bytes]]] = None,
 ) -> tuple[ExtractionResponse, object, float]:
     """Make up to 2 API calls; return (parsed_response, last_usage, total_seconds).
 
@@ -183,7 +217,7 @@ def _run_with_retry(
     After the second failure, raise so the caller can return an error result.
     """
     base_messages: list[dict] = [
-        {"role": "user", "content": _build_user_content(images_bytes)}
+        {"role": "user", "content": _build_user_content(images_bytes, crops)}
     ]
 
     t0 = time.monotonic()
@@ -276,7 +310,8 @@ def extract_form(
         upload_date = date.today()
 
     images_bytes = [_resize_to_jpeg(img) for img in images]
-    key = _cache_key(images_bytes, model)
+    crops = [blue_ink_crops(img) for img in images] if AI_BLUE_CROPS else None
+    key = _cache_key(images_bytes + [c for page in crops or [] for c in page], model)
 
     if not no_cache:
         cached = _read_cache(key)
@@ -291,7 +326,7 @@ def extract_form(
     client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
     try:
-        parsed, usage, elapsed = _run_with_retry(client, images_bytes, model)
+        parsed, usage, elapsed = _run_with_retry(client, images_bytes, model, crops)
     except Exception as exc:
         log.error("AI extraction failed: %s", exc)
         error_form = ExtractedForm(

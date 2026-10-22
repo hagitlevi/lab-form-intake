@@ -1,0 +1,434 @@
+[
+ {
+  "crop": "p1_pg2_central_number.png",
+  "page": 2,
+  "part": 1,
+  "field": "central_number",
+  "kind": "handwritten_digits",
+  "ai_value": "924158",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg2_received_date.png",
+  "page": 2,
+  "part": 1,
+  "field": "received_date",
+  "kind": "handwritten_digits",
+  "ai_value": "16.06.2026",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg2_national_id.png",
+  "page": 2,
+  "part": 1,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "00742233",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg2_name.png",
+  "page": 2,
+  "part": 1,
+  "field": "name",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg2_commitment_number.png",
+  "page": 2,
+  "part": 1,
+  "field": "commitment_number",
+  "kind": "printed_digits",
+  "ai_value": "730542025",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg2_visit_date_printed.png",
+  "page": 2,
+  "part": 1,
+  "field": "visit_date_printed",
+  "kind": "printed_digits",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg3_central_number.png",
+  "page": 3,
+  "part": 1,
+  "field": "central_number",
+  "kind": "handwritten_digits",
+  "ai_value": "939273",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg3_national_id.png",
+  "page": 3,
+  "part": 1,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "001122334",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg3_name.png",
+  "page": 3,
+  "part": 1,
+  "field": "name",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg3_commitment_number.png",
+  "page": 3,
+  "part": 1,
+  "field": "commitment_number",
+  "kind": "printed_digits",
+  "ai_value": "127138045",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg3_sender.png",
+  "page": 3,
+  "part": 1,
+  "field": "sender",
+  "kind": "hebrew_printed",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg4_central_number.png",
+  "page": 4,
+  "part": 1,
+  "field": "central_number",
+  "kind": "handwritten_digits",
+  "ai_value": "939135",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg4_received_date.png",
+  "page": 4,
+  "part": 1,
+  "field": "received_date",
+  "kind": "handwritten_digits",
+  "ai_value": "16.06.26",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg4_national_id.png",
+  "page": 4,
+  "part": 1,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg4_name.png",
+  "page": 4,
+  "part": 1,
+  "field": "name",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg4_commitment_number.png",
+  "page": 4,
+  "part": 1,
+  "field": "commitment_number",
+  "kind": "printed_digits",
+  "ai_value": "000302651707",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg7_central_number.png",
+  "page": 7,
+  "part": 1,
+  "field": "central_number",
+  "kind": "handwritten_digits",
+  "ai_value": "937188",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg7_received_date.png",
+  "page": 7,
+  "part": 1,
+  "field": "received_date",
+  "kind": "handwritten_digits",
+  "ai_value": "16126",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg7_national_id.png",
+  "page": 7,
+  "part": 1,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "112233",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg7_name.png",
+  "page": 7,
+  "part": 1,
+  "field": "name",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg19_central_number.png",
+  "page": 19,
+  "part": 1,
+  "field": "central_number",
+  "kind": "handwritten_digits",
+  "ai_value": "944000",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg19_received_date.png",
+  "page": 19,
+  "part": 1,
+  "field": "received_date",
+  "kind": "handwritten_digits",
+  "ai_value": "13.8.26",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg19_national_id.png",
+  "page": 19,
+  "part": 1,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "11223344",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg19_commitment_number.png",
+  "page": 19,
+  "part": 1,
+  "field": "commitment_number",
+  "kind": "printed_digits",
+  "ai_value": "944000361",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg19_sender.png",
+  "page": 19,
+  "part": 1,
+  "field": "sender",
+  "kind": "hebrew_printed",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg19_sender_long.png",
+  "page": 19,
+  "part": 1,
+  "field": "sender_long",
+  "kind": "hebrew_printed",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg25_central_number.png",
+  "page": 25,
+  "part": 1,
+  "field": "central_number",
+  "kind": "handwritten_digits",
+  "ai_value": "947062",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg25_received_date.png",
+  "page": 25,
+  "part": 1,
+  "field": "received_date",
+  "kind": "handwritten_digits",
+  "ai_value": "30.7.26",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg25_national_id.png",
+  "page": 25,
+  "part": 1,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "11223344",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg25_commitment_number.png",
+  "page": 25,
+  "part": 1,
+  "field": "commitment_number",
+  "kind": "printed_digits",
+  "ai_value": "260005102632",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg14_commitment_number.png",
+  "page": 14,
+  "part": 1,
+  "field": "commitment_number",
+  "kind": "handwritten_digits",
+  "ai_value": "112233449",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg14_received_date.png",
+  "page": 14,
+  "part": 1,
+  "field": "received_date",
+  "kind": "printed_digits",
+  "ai_value": "05-08-2026",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg14_free_text.png",
+  "page": 14,
+  "part": 1,
+  "field": "free_text",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg21_received_date.png",
+  "page": 21,
+  "part": 1,
+  "field": "received_date",
+  "kind": "handwritten_digits",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg21_national_id.png",
+  "page": 21,
+  "part": 1,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "11223344",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg21_central_number.png",
+  "page": 21,
+  "part": 1,
+  "field": "central_number",
+  "kind": "printed_digits",
+  "ai_value": "947493",
+  "truth": ""
+ },
+ {
+  "crop": "p1_pg21_free_text.png",
+  "page": 21,
+  "part": 1,
+  "field": "free_text",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg3_commitment_number.png",
+  "page": 3,
+  "part": 2,
+  "field": "commitment_number",
+  "kind": "printed_digits",
+  "ai_value": "141046589",
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg3_received_date.png",
+  "page": 3,
+  "part": 2,
+  "field": "received_date",
+  "kind": "handwritten_digits",
+  "ai_value": "25/08/2026",
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg3_national_id.png",
+  "page": 3,
+  "part": 2,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "112203849",
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg3_central_number.png",
+  "page": 3,
+  "part": 2,
+  "field": "central_number",
+  "kind": "printed_digits",
+  "ai_value": "947476",
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg3_free_text.png",
+  "page": 3,
+  "part": 2,
+  "field": "free_text",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg3_sender.png",
+  "page": 3,
+  "part": 2,
+  "field": "sender",
+  "kind": "hebrew_printed",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg10_commitment_number.png",
+  "page": 10,
+  "part": 2,
+  "field": "commitment_number",
+  "kind": "handwritten_digits",
+  "ai_value": "375365293",
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg10_national_id.png",
+  "page": 10,
+  "part": 2,
+  "field": "national_id",
+  "kind": "handwritten_digits",
+  "ai_value": "112233445",
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg10_central_number.png",
+  "page": 10,
+  "part": 2,
+  "field": "central_number",
+  "kind": "printed_digits",
+  "ai_value": "945598",
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg10_name.png",
+  "page": 10,
+  "part": 2,
+  "field": "name",
+  "kind": "hebrew_handwritten",
+  "ai_value": null,
+  "truth": ""
+ },
+ {
+  "crop": "p2_pg10_sender.png",
+  "page": 10,
+  "part": 2,
+  "field": "sender",
+  "kind": "hebrew_printed",
+  "ai_value": null,
+  "truth": ""
+ }
+]

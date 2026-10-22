@@ -13,6 +13,8 @@ Final demo: 28/10/2026. Prefer simple, working code over abstractions.
   FastAPI serves frontend/dist and returns index.html for every non-/api path. frontend/dist is not in git.
 - Config from environment (.env locally, never committed): DATABASE_URL, ANTHROPIC_API_KEY,
   ANTHROPIC_MODEL, TESSERACT_CMD (optional, Windows only), LOCAL_WORKERS (default 2), AI_WORKERS (default 3),
+  OCR_ENGINE (default tesseract; =google is an experiment that sends page images to Google Cloud Vision, needs GOOGLE_VISION_API_KEY, never in the cloud without a privacy decision),
+  AI_BLUE_CROPS (default 0; =1 adds enlarged crops of the blue handwriting to the AI call),
   AI_CACHE (dev only, default off; =1 enables the extract cache in samples/debug/ai_cache; never enable in the cloud - it writes patient fields to disk)
 - Deployment: Render web service using Docker (step 11). Multi-stage build: Node stage runs
   npm ci && npm run build, Python stage installs tesseract-ocr + tesseract-ocr-heb and copies dist.
@@ -37,6 +39,7 @@ One record per commitment number; patient fields live on the form and are shared
   The word "דגימה" appears on most forms with other meanings; treat it as a commitment
   number only on Leumit forms, or on a form that states the sample number is the commitment
   number ("מספר הדגימה מהווה מספר התחייבות", e.g. Rambam). A form may have several commitment numbers: keep all.
+  A commitment number may be printed next to a barcode: without the word "מרכזי" beside it, it is not a central number.
   Hospital system screenshots: every number in the "מספר התחייבות" table column is a commitment number.
 - A field that cannot be read is left empty (null). Never guess a value.
 - The sample forms have replaced personal details (identical blue handwritten name/ID on all forms)
