@@ -168,7 +168,7 @@ def _call_once(
         system=_load_prompt(),
         messages=messages,
         tools=[_tool_def()],
-        tool_choice={"type": "tool", "name": TOOL_NAME},
+        tool_choice={"type": "auto"},
     )
 
 
