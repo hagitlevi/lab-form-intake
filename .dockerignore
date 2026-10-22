@@ -1,0 +1,9 @@
+samples/
+experiments/
+design-reference/
+.venv
+node_modules
+frontend/dist
+.env
+.git
+__pycache__

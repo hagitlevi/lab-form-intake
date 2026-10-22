@@ -13,7 +13,7 @@ Final demo: 28/10/2026. Prefer simple, working code over abstractions.
   FastAPI serves frontend/dist and returns index.html for every non-/api path. frontend/dist is not in git.
 - Config from environment (.env locally, never committed): DATABASE_URL, ANTHROPIC_API_KEY,
   ANTHROPIC_MODEL, TESSERACT_CMD (optional, Windows only), LOCAL_WORKERS (default 2), AI_WORKERS (default 3),
-  AI_CACHE (dev only, default off; never enable in the cloud - it writes patient fields to disk)
+  AI_CACHE (dev only, default off; =1 enables the extract cache in samples/debug/ai_cache; never enable in the cloud - it writes patient fields to disk)
 - Deployment: Render web service using Docker (step 11). Multi-stage build: Node stage runs
   npm ci && npm run build, Python stage installs tesseract-ocr + tesseract-ocr-heb and copies dist.
   Page images are stored in the DB (BYTEA) because Render's disk is ephemeral.

@@ -32,6 +32,7 @@ AI_MAX_IMAGE_PX = int(os.environ.get("AI_MAX_IMAGE_PX", "2048"))
 PROMPT_VERSION = "v3"
 TOOL_NAME = "extract_forms"
 CACHE_DIR = Path("samples/debug/ai_cache")
+AI_CACHE = os.environ.get("AI_CACHE", "").lower() in ("1", "true", "yes")  # dev only: cache holds patient fields
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +69,8 @@ def _cache_key(images_bytes: list[bytes], model: str) -> str:
 
 
 def _read_cache(key: str) -> Optional[dict]:
+    if not AI_CACHE:
+        return None
     path = CACHE_DIR / f"{key}.json"
     if path.exists():
         try:
@@ -78,6 +81,8 @@ def _read_cache(key: str) -> Optional[dict]:
 
 
 def _write_cache(key: str, data: dict) -> None:
+    if not AI_CACHE:
+        return
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     (CACHE_DIR / f"{key}.json").write_text(
         json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
