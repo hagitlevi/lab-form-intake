@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, navigate } from './App.jsx'
-import { SHARED, call, errText, patchBody, patchField, rowReview, useFieldEdit } from './fieldEdit.js'
+import WarnIcon from './WarnIcon.jsx'
+import { SHARED, call, errText, patchBody, patchField, rowReview, splitReasons, useFieldEdit } from './fieldEdit.js'
 
 const LABELS = {
   first_name: 'שם פרטי', last_name: 'שם משפחה', national_id: 'ת״ז', received_date: 'תאריך קבלה',
@@ -20,6 +21,7 @@ function orderedItems(fields) {
 function Field({ f, onSave, onSelect, onRemove, senders, reg }) {
   const value = f.value ?? ''
   const review = isReview(f)
+  const reasons = splitReasons(f.reasons)
   const num = NUM.has(f.name)
   const latest = useRef(value)
   latest.current = value
@@ -46,9 +48,9 @@ function Field({ f, onSave, onSelect, onRemove, senders, reg }) {
         )}
         {onRemove && <button className="btn btn-ghost btn-sm" onClick={onRemove}>הסרה</button>}
       </div>
-      {review && f.reasons.map((r, i) => <span key={i} className="reason">לבדיקה · {r}</span>)}
-      {review && f.reasons.length > 0 && f.name !== 'sender' && <span className="hint">Enter נוסף לאישור בכל זאת</span>}
-      {!review && f.reasons.map((r, i) => <span key={i} className="warn">{r}</span>)}
+      {review && reasons.review.map((r, i) => <span key={i} className="reason">לבדיקה · {r}</span>)}
+      {review && reasons.review.length > 0 && f.name !== 'sender' && <span className="hint">Enter נוסף לאישור בכל זאת</span>}
+      <WarnIcon reasons={reasons.warnings} />
       {review && value === '' && (
         <button className="btn btn-ghost btn-sm confirm" onClick={async () => { await commit(true) }}>אישור כריק</button>
       )}

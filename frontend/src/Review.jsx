@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from './App.jsx'
-import { SHARED, call, errText, patchBody, patchField, rowReview, useFieldEdit } from './fieldEdit.js'
+import { Link, lastBatch, navigate } from './App.jsx'
+import WarnIcon from './WarnIcon.jsx'
+import { SHARED, call, errText, patchBody, patchField, rowReview, splitReasons, useFieldEdit } from './fieldEdit.js'
 
 const HEADERS = ["עמ'", 'שם פרטי', 'שם משפחה', 'ת״ז', 'מספר מרכזי', 'תאריך קבלה', 'גורם שולח', 'מספר התחייבות', '']
 const NUMERIC = new Set(['national_id', 'central_numbers', 'received_date', 'commitment_number'])
@@ -9,6 +10,7 @@ function Cell({ field, numeric, onSave, options }) {
   const [editing, setEditing] = useState(false)
   const value = field.value ?? ''
   const review = field.state === 'review'
+  const reasons = splitReasons(field.reasons)
   const { setDraft, err, setErr, commit, inputProps } = useFieldEdit(value, onSave)
 
   const shown = review && value === '' ? <span className="empty">ריק</span> : numeric ? value.split(' ').map((v, i) => <span key={i} className="num">{v}</span>) : value
@@ -30,9 +32,9 @@ function Cell({ field, numeric, onSave, options }) {
           {field.state === 'corrected' && <span className="mark">תוקן</span>}
         </>
       )}
-      {review && field.reasons?.map((r, i) => <span key={i} className="reason">לבדיקה · {r}</span>)}
-      {review && !editing && !options && field.reasons?.length > 0 && <div className="hint">Enter נוסף לאישור בכל זאת</div>}
-      {!review && field.reasons?.map((r, i) => <div key={i} className="warn">{r}</div>)}
+      {review && reasons.review.length > 0 && <span className="reason">לבדיקה</span>}
+      {review && !editing && !options && reasons.review.length > 0 && <div className="hint">Enter לאישור</div>}
+      <WarnIcon reasons={reasons.warnings} />
       {err && <div className="err">{err}</div>}
       {review && value === '' && !editing && (
         <button className="btn btn-ghost btn-sm confirm" onClick={async (e) => { e.stopPropagation(); if (await commit(true)) setEditing(false) }}>אישור כריק</button>
@@ -98,7 +100,22 @@ export default function Review({ id }) {
     return () => clearInterval(t)
   }, [status, load])
 
-  const jump = () => document.querySelector('[data-review="1"]')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  // remember the open batch; forget it once approved
+  useEffect(() => {
+    if (!status) return
+    if (status === 'approved') lastBatch.clear(id)
+    else lastBatch.set(id)
+  }, [status, id])
+
+  // scroll to the first form with a field for review and softly highlight its row(s)
+  const jump = () => {
+    const row = document.querySelector('[data-review="1"]')?.closest('tr')
+    if (!row) return
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const rows = document.querySelectorAll(`tr[data-form="${row.dataset.form}"]`)
+    rows.forEach((tr) => tr.classList.add('spot'))
+    setTimeout(() => rows.forEach((tr) => tr.classList.remove('spot')), 2500)
+  }
 
   const patch = (formId, body) => async (value) => {
     const e = await patchField(formId, body(value))
@@ -122,6 +139,12 @@ export default function Review({ id }) {
       await load()
       jump()
     } else if (r.ok) { setApproveMsg(''); load() } else setApproveMsg(errText(r))
+  }
+
+  const remove = async () => {
+    if (!window.confirm('למחוק את הערימה וכל הטפסים שבה? אי אפשר לבטל את המחיקה.')) return
+    const r = await call(`/api/batches/${id}`, 'DELETE')
+    if (r.ok || r.status === 404) { lastBatch.clear(id); navigate('/') } else setApproveMsg(errText(r))
   }
 
   if (loadErr && !batch) return <div className="notice bad">{loadErr}</div>
@@ -152,6 +175,8 @@ export default function Review({ id }) {
         </div>
         <div>
           {approveMsg && <span className="rowerr">{approveMsg}</span>}
+          {!approved && <button className="btn btn-ghost btn-danger" onClick={remove}>מחיקת הערימה</button>}
+          <button className="btn btn-ghost" onClick={() => navigate('/')}>קליטה חדשה</button>
           <button className="btn btn-primary" disabled={approved || processing} onClick={approve}>
             אישור ושמירה של <span className="num">{rows.length}</span> רשומות
           </button>
@@ -199,7 +224,7 @@ export default function Review({ id }) {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B35C00" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19z" /><path d="M12 10v4" /><path d="M12 17.5h.01" /></svg>
             <span><b><span className="num">{reviewCount}</span> שדות לבדיקה.</b> כל שאר השדות זוהו בביטחון גבוה.</span>
           </div>
-          <button className="btn btn-ghost" onClick={jump}>לשדה הראשון לבדיקה</button>
+          <button className="btn btn-ghost" onClick={jump}>לטופס הראשון לבדיקה</button>
         </div>
       )}
 
@@ -229,7 +254,7 @@ export default function Review({ id }) {
               </td>
             )
             return (
-              <tr key={`${fid}-${r.item_index}`}>
+              <tr key={`${fid}-${r.item_index}`} data-form={fid}>
                 <td>
                   {first && (
                     <>

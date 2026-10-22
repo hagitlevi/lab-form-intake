@@ -9,6 +9,15 @@ export function navigate(path) {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
+// The batch the user is working on, so leaving to "רשומות" and back returns to it.
+// Kept in localStorage (per browser); cleared once the batch is approved.
+const KEY = 'lastBatch'
+export const lastBatch = {
+  get() { try { return localStorage.getItem(KEY) } catch { return null } },
+  set(id) { try { localStorage.setItem(KEY, String(id)) } catch { /* storage blocked */ } },
+  clear(id) { try { if (localStorage.getItem(KEY) === String(id)) localStorage.removeItem(KEY) } catch { /* storage blocked */ } },
+}
+
 export function Link({ to, className, children }) {
   return (
     <a href={to} className={className} onClick={(e) => { e.preventDefault(); navigate(to) }}>
@@ -33,6 +42,8 @@ export default function App() {
   else if (path === '/records') page = <Records />
 
   const onRecords = path === '/records'
+  const open = lastBatch.get()
+  const intakePath = open ? `/batches/${open}` : '/'
   return (
     <>
       <header className="header">
@@ -42,7 +53,7 @@ export default function App() {
             <span>המרכז הרפואי שיבא</span>
           </div>
           <nav className="nav-links" aria-label="ניווט ראשי">
-            <Link to="/" className={'nav' + (onRecords ? '' : ' on')}>קליטת טפסים</Link>
+            <Link to={intakePath} className={'nav' + (onRecords ? '' : ' on')}>קליטת טפסים</Link>
             <Link to="/records" className={'nav' + (onRecords ? ' on' : '')}>רשומות</Link>
           </nav>
         </div>

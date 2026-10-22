@@ -29,6 +29,14 @@ export async function patchField(formId, body) {
   return r.ok ? null : errText(r)
 }
 
+// Split a field's reasons: warnings (shown as the ⚠ icon) vs. review reasons (orange).
+// Prefix of ID_WARNING in backend/pipeline/confidence.py - keep in sync.
+export function splitReasons(reasons) {
+  const out = { review: [], warnings: [] }
+  for (const r of reasons || []) (r.startsWith('מספר הזהות אינו תקין') ? out.warnings : out.review).push(r)
+  return out
+}
+
 export const rowReview = (r) =>
   SHARED.some((n) => r[n].state === 'review') ||
   r.commitment_number.state === 'review' ||

@@ -90,14 +90,15 @@ Rules: Israeli ID check digit (pad to 9; an invalid or longer-than-9 ID is NOT a
 as read, state unchanged, with a warning note - never cut), date valid and not in the future,
 sender in the closed list (fuzzy match), commitment number format per sender when known.
 Only two states are shown in the UI: safe or "for review" (orange), always with a reason in Hebrew.
+The invalid-ID warning is not a review reason: it shows as a small ⚠ icon (click opens the text), also on orange fields. In the review table an orange cell shows only "לבדיקה" + "Enter לאישור"; the full reason is in the form view.
 Manual edit: a typed value that fails validation (other than the national ID, which only gets the warning)
 stays orange with the error; pressing Enter again with the same value accepts it ("אושר ידנית למרות שגיאת אימות"), recorded in the audit log.
 
 ## API
 POST /api/batches, GET /api/batches/{id}, GET /api/pages/{id}/image, PATCH /api/forms/{id}
 (list items as {"commitment_numbers": {"<item_index>": value}}), merge-with-previous, mark-separate,
-approve (409 while any field is orange), GET /api/records, GET /api/records/export.csv (UTF-8 BOM),
-GET /api/senders.
+approve (409 while any field is orange), GET /api/records, GET /api/records/export.csv (UTF-8 BOM), GET /api/records/export.pdf (RTL table, same q/status filters; the UI opens a save dialog),
+GET /api/senders (sorted א-ב).
 
 ## Frontend
 Routes (small history-based router in App.jsx, no library): / upload, /batches/:id review table,

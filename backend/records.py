@@ -5,7 +5,10 @@ commitment number; patient fields live on the form and are shared"), for the rev
 from __future__ import annotations
 
 import csv
+import html
 import io
+
+import pymupdf
 
 _SHARED_FIELDS = ("first_name", "last_name", "national_id", "received_date", "sender")
 _MISSING_FIELD = {"value": None, "state": "review", "reasons": ["לא נמצא בטופס"], "bbox": None, "page_id": None}
@@ -124,3 +127,41 @@ def rows_to_csv_bytes(rows: list[dict]) -> bytes:
             row["flagged"], ";".join(row["flag_reasons"] or []),
         ])
     return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
+
+
+def rows_to_pdf_bytes(rows: list[dict]) -> bytes:
+    """Records table as an RTL A4-landscape PDF (PyMuPDF Story; its built-in Hebrew font)."""
+    def num(v):
+        return f'<span dir="ltr">{html.escape(v)}</span>' if v else "—"
+    head = ["סטטוס", "שם", "ת״ז", "מספר מרכזי", "תאריך קבלה", "גורם שולח", "מספר התחייבות"]
+    body = "".join(
+        "<tr>" + "".join(f"<td>{c}</td>" for c in (
+            "אושרה" if r["status"] == "approved" else "ממתינה",
+            html.escape(" ".join(filter(None, (r["first_name"]["value"], r["last_name"]["value"])))) or "—",
+            num(r["national_id"]["value"]),
+            ", ".join(num(c["value"]) for c in r["central_numbers"] if c["value"]) or "—",
+            num(r["received_date"]["value"]),
+            html.escape(r["sender"]["value"] or "") or "—",
+            num(r["commitment_number"]["value"]),
+        )) + "</tr>"
+        for r in rows
+    )
+    doc = (
+        '<html dir="rtl"><body style="font-family:sans-serif;font-size:10pt"><h2>רשומות</h2>'
+        '<table style="width:100%;border-collapse:collapse">'
+        "<tr>" + "".join(f'<th style="border:1px solid #999;background:#eee;padding:3px">{h}</th>' for h in head) + "</tr>"
+        + body.replace("<td>", '<td style="border:1px solid #999;padding:3px;text-align:center">')
+        + "</table></body></html>"
+    )
+    story = pymupdf.Story(doc)
+    buf = io.BytesIO()
+    writer = pymupdf.DocumentWriter(buf)
+    page = pymupdf.paper_rect("a4-l")
+    more = True
+    while more:
+        dev = writer.begin_page(page)
+        more, _ = story.place(page + (30, 30, -30, -30))
+        story.draw(dev)
+        writer.end_page()
+    writer.close()
+    return buf.getvalue()

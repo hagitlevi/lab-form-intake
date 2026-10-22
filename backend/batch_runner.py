@@ -120,12 +120,21 @@ def _update_batch(conn, batch_id: int, **fields) -> None:
     conn.commit()
 
 
+def _batch_exists(batch_id: int) -> bool:
+    """False once the user deleted the batch (DELETE /api/batches/{id}) mid-processing."""
+    with pool.connection() as conn:
+        return conn.execute("SELECT 1 FROM batches WHERE id = %s", (batch_id,)).fetchone() is not None
+
+
 def process_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[int, int]) -> None:
     """The whole pipeline for one batch: split -> scan (LOCAL_WORKERS) -> group ->
     extract+confidence per form group (AI_WORKERS), persisting as each group finishes."""
     try:
         _run_batch(batch_id, file_paths, file_id_by_position)
     except Exception as exc:  # orchestration-level failure, not a single page/form
+        if not _batch_exists(batch_id):  # deleted by the user while processing: not a failure
+            log.info("batch %s was deleted during processing; stopped", batch_id)
+            return
         log.exception("batch %s failed", batch_id)
         with pool.connection() as conn:
             _update_batch(conn, batch_id, status="interrupted", error=f"{type(exc).__name__}: {exc}")
@@ -192,6 +201,8 @@ def _run_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[i
     today = date.today()
 
     def process_group(group: FormGroup) -> None:
+        if not _batch_exists(batch_id):  # deleted mid-processing: skip the AI call
+            return
         group_pagedata = [
             PageData(
                 source=pf.source,

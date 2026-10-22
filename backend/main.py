@@ -156,6 +156,22 @@ def approve_batch(batch_id: int):
     return {"status": "approved"}
 
 
+@app.delete("/api/batches/{batch_id}")
+def delete_batch(batch_id: int):
+    """Delete a batch and everything under it (files, pages, forms, fields, audit log - all
+    ON DELETE CASCADE). An approved batch is final and cannot be deleted. A batch still
+    processing may be deleted: its background thread notices and stops calling the AI."""
+    with pool.connection() as conn:
+        row = conn.execute("SELECT status FROM batches WHERE id = %s", (batch_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "batch not found")
+        if row[0] == "approved":
+            raise HTTPException(409, "ערימה שאושרה לא ניתנת למחיקה")
+        conn.execute("DELETE FROM batches WHERE id = %s", (batch_id,))
+        conn.commit()
+    return {"deleted": batch_id}
+
+
 @app.get("/api/records")
 def search_records(q: Optional[str] = None, status: Optional[str] = None):
     with pool.connection() as conn:
@@ -177,9 +193,21 @@ def export_records_csv(q: Optional[str] = None, status: Optional[str] = None):
     )
 
 
+@app.get("/api/records/export.pdf")
+def export_records_pdf(q: Optional[str] = None, status: Optional[str] = None):
+    with pool.connection() as conn:
+        form_ids = records.search_form_ids(conn, q, status)
+        rows = records.fetch_rows(conn, form_ids=form_ids) if form_ids else []
+    return Response(
+        content=records.rows_to_pdf_bytes(rows),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=records.pdf"},
+    )
+
+
 @app.get("/api/senders")
 def senders():
-    return json.loads((Path(__file__).parent / "data" / "senders.json").read_text(encoding="utf-8"))
+    return sorted(json.loads((Path(__file__).parent / "data" / "senders.json").read_text(encoding="utf-8")))  # א-ב for the dropdowns
 
 
 class SPAFiles(StaticFiles):

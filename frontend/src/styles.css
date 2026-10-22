@@ -107,25 +107,31 @@ main.wide { max-width: 1600px; padding: 32px 24px; gap: 20px; }
 .tbl th, .tbl td { text-align: center; vertical-align: middle; overflow-wrap: anywhere; border-inline-end: 1px solid var(--col-border); }
 .tbl th:last-child, .tbl td:last-child { border-inline-end: 0; }
 .tbl th { font-weight: 500; color: var(--text-2); font-size: 14px; padding: 12px 10px; background: var(--th-bg); border-bottom: 2px solid var(--border-strong); }
-.tbl td { height: 56px; padding: 12px 10px; border-bottom: 1px solid var(--col-border); }
+.tbl td { height: 32px; padding: 4px 10px; border-bottom: 1px solid var(--col-border); }
 .tbl tr:last-child td { border-bottom: 0; }
 .tbl th:first-child, .tbl td:first-child { border-inline-start: 3px solid transparent; }
 .tbl tbody tr:hover td { background: var(--row-hover); }
+.btn-danger { color: #B42318; }
+.btn-danger:hover { border-color: #B42318; }
+/* "לטופס הראשון לבדיקה": soft, temporary highlight of the form's row(s) */
+.tbl tbody td { transition: background-color .6s ease, border-color .6s ease; }
+.tbl tbody tr.spot td { background: var(--row-hover); }
+.tbl tbody tr.spot td:first-child { border-inline-start-color: var(--primary); }
 .tbl tbody tr:hover td:first-child { border-inline-start-color: var(--primary); }
 .tbl .num { white-space: nowrap; overflow-wrap: normal; }
 .tbl td.cell { padding: 0; height: 1px; }
 .tbl td.cell .num { display: block; }
-.cellbox { height: 100%; min-height: 56px; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: text; position: relative; transition: background 120ms, box-shadow 120ms; }
+.cellbox { height: 100%; min-height: 32px; padding: 4px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer; position: relative; transition: background 120ms, box-shadow 120ms; }
 .cellbox:hover, .cellbox:focus-within { background: #fff; box-shadow: inset 0 0 0 2px var(--primary), var(--focus-shadow); z-index: 1; }
 .cellbox.review { background: var(--review-bg); box-shadow: inset 0 0 0 2px var(--review-border); }
 .cellbox.review:hover, .cellbox.review:focus-within { background: var(--review-hover); box-shadow: inset 0 0 0 2px var(--review-border); }
 .cellbox .empty, .cellbox .reason { color: var(--review-text); }
-.cellbox .reason { display: block; white-space: normal; font-size: 14px; font-weight: 500; margin-top: 3px; }
-.cellbox .hint { white-space: normal; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.cellbox .reason { display: block; white-space: normal; font-size: 14px; font-weight: 500; margin-top: 0; }
+.cellbox .hint { white-space: normal; font-size: 14px; color: var(--muted); margin-top: 0; }
 .cellbox .mark { font-size: 14px; color: var(--muted); margin-inline-start: 6px; }
 .cellbox .warn, .cellbox .err, .rowerr { font-size: 14px; color: var(--error); margin-top: 2px; }
 .cellbox input { width: 100%; font: inherit; text-align: center; border: 1px solid var(--primary); border-radius: 6px; padding: 2px 6px; }
-.cellbox .confirm { margin-top: 6px; }
+.cellbox .confirm { margin-top: 2px; }
 .pages { font-size: 14px; color: var(--muted); }
 .tag { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; background: var(--th-bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px 8px; font-size: 14px; margin: 2px 0; white-space: normal; }
 
@@ -178,3 +184,9 @@ main.wide { max-width: 1600px; padding: 32px 24px; gap: 20px; }
 }
 
 @media print { .header, .toolbar, .page-head > div:last-child { display: none; } .table-wrap { border: 0; } .tbl tr { break-inside: avoid; } }
+
+/* warning icon (valid-looking field with a note): small, click opens the explanation */
+.warnicon { position: relative; display: inline-block; }
+.warnicon-btn { background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 16px; line-height: 1; color: #B26A00; }
+.warnicon-pop { position: absolute; inset-inline-start: 0; top: 100%; z-index: 10; min-width: 180px; max-width: 260px; display: flex; flex-direction: column; gap: 2px;
+  background: #fff; border: 1px solid var(--border, #DDE3E8); border-radius: 6px; padding: 6px 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); font-size: 13px; color: var(--error); }

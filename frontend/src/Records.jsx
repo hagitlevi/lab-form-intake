@@ -10,6 +10,25 @@ const Nums = ({ values }) => {
   return list.length ? list.map((v, i) => <span key={i}><span className="num">{v}</span>{i < list.length - 1 && ', '}</span>) : <span className="empty">—</span>
 }
 
+// Opens the "save as" dialog (Chrome/Edge); other browsers fall back to a normal download.
+async function savePdf(url) {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`שגיאה ${res.status}`)
+  const blob = await res.blob()
+  if (window.showSaveFilePicker) {
+    try {
+      const h = await window.showSaveFilePicker({ suggestedName: 'records.pdf', types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] })
+      const w = await h.createWritable()
+      await w.write(blob)
+      await w.close()
+    } catch (e) { if (e.name !== 'AbortError') throw e }
+    return
+  }
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'records.pdf' })
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 export default function Records() {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('')
@@ -27,6 +46,7 @@ export default function Records() {
 
   const count = (s) => rows.filter((r) => !s || r.status === s).length
   const visible = rows && rows.filter((r) => !status || r.status === status)
+  const pdfUrl = '/api/records/export.pdf?' + new URLSearchParams({ q: q.trim(), status })
   const exportUrl = '/api/records/export.csv?' + new URLSearchParams({ q: q.trim(), status })
 
   return (
@@ -38,7 +58,8 @@ export default function Records() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v11" /><path d="m7.5 10.5 4.5 4.5 4.5-4.5" /><path d="M4 18v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1" /></svg>
             ייצוא CSV
           </a>
-          <button className="btn btn-ghost" onClick={() => window.print()}>ייצוא PDF</button>
+          <button className="btn btn-ghost" onClick={() => savePdf(pdfUrl).catch((e) => setErr(e.message))}>ייצוא PDF</button>
+          <button className="btn btn-ghost" onClick={() => window.print()}>הדפסה</button>
         </div>
       </div>
 

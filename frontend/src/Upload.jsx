@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { navigate } from './App.jsx'
+import { Link, lastBatch, navigate } from './App.jsx'
 
 const OK = /\.(pdf|jpe?g|png)$/i
 
@@ -63,6 +63,12 @@ export default function Upload() {
       </div>
       <input ref={input} type="file" multiple hidden accept=".pdf,.jpg,.jpeg,.png"
         onChange={(e) => { add(e.target.files); e.target.value = '' }} />
+
+      {lastBatch.get() && (
+        <div className="notice">
+          יש ערימה שעדיין לא אושרה. <Link to={`/batches/${lastBatch.get()}`}>חזרה לערימה</Link>
+        </div>
+      )}
 
       {files.length > 0 && (
         <section className="card">
