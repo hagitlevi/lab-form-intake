@@ -3,6 +3,7 @@ import Upload from './Upload.jsx'
 import Review from './Review.jsx'
 import FormView from './FormView.jsx'
 import Records from './Records.jsx'
+import Stats from './Stats.jsx'
 
 export function navigate(path) {
   history.pushState(null, '', path)
@@ -40,8 +41,10 @@ export default function App() {
   if (batch) page = <Review key={batch[1]} id={batch[1]} />
   else if (form) page = <FormView key={form[1]} id={form[1]} />
   else if (path === '/records') page = <Records />
+  else if (path === '/stats') page = <Stats />
 
   const onRecords = path === '/records'
+  const onStats = path === '/stats'
   const open = lastBatch.get()
   const intakePath = open ? `/batches/${open}` : '/'
   return (
@@ -53,8 +56,9 @@ export default function App() {
             <span>המרכז הרפואי שיבא</span>
           </div>
           <nav className="nav-links" aria-label="ניווט ראשי">
-            <Link to={intakePath} className={'nav' + (onRecords ? '' : ' on')}>קליטת טפסים</Link>
+            <Link to={intakePath} className={'nav' + (onRecords || onStats ? '' : ' on')}>קליטת טפסים</Link>
             <Link to="/records" className={'nav' + (onRecords ? ' on' : '')}>רשומות</Link>
+            <Link to="/stats" className={'nav' + (onStats ? ' on' : '')}>סטטיסטיקה</Link>
           </nav>
         </div>
       </header>

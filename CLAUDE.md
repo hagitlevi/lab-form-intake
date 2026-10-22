@@ -98,12 +98,12 @@ stays orange with the error; pressing Enter again with the same value accepts it
 POST /api/batches, GET /api/batches/{id}, GET /api/pages/{id}/image, PATCH /api/forms/{id}
 (list items as {"commitment_numbers": {"<item_index>": value}}), merge-with-previous, mark-separate,
 approve (409 while any field is orange), GET /api/records, GET /api/records/export.csv (UTF-8 BOM), GET /api/records/export.pdf (RTL table, same q/status filters; the UI opens a save dialog),
-GET /api/senders (sorted א-ב).
+GET /api/senders (sorted א-ב), GET /api/stats/senders (per sender: forms, fields, safe fields; best first).
 
 ## Frontend
 Routes (small history-based router in App.jsx, no library): / upload, /batches/:id review table,
 /forms/:id single-form view (page image with the selected field's bbox, zoom, rotate, page tabs),
-/records. Reuse frontend/src/styles.css and the patterns in Review.jsx; follow design-reference/
+/records, /stats (bar chart: % safe fields per sender). Reuse frontend/src/styles.css and the patterns in Review.jsx; follow design-reference/
 (not in git). Do not introduce a new visual style. Font Heebo; background #F4F7F9; white cards,
 border #DDE3E8; primary #0B6A85; orange ONLY for fields for review (bg #FFF3E6, 2px border #E8892B,
 reason text #8A4500); status badges pending #FFF3E6/#8A4500, approved #E5F3EA/#1D6B37.

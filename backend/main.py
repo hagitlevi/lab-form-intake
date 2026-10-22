@@ -205,6 +205,24 @@ def export_records_pdf(q: Optional[str] = None, status: Optional[str] = None):
     )
 
 
+@app.get("/api/stats/senders")
+def sender_stats():
+    """Per sender: forms, fields, and fields that came out safe (no technician attention)."""
+    with pool.connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT s.value, COUNT(DISTINCT s.form_id), COUNT(*), COUNT(*) FILTER (WHERE f.state = 'safe')
+            FROM fields s JOIN fields f ON f.form_id = s.form_id
+            WHERE s.name = 'sender' AND s.item_index = 0 AND s.value IS NOT NULL
+            GROUP BY s.value
+            """
+        ).fetchall()
+    return sorted(
+        ({"sender": r[0], "forms": r[1], "fields": r[2], "safe": r[3]} for r in rows),
+        key=lambda x: -x["safe"] / x["fields"],
+    )
+
+
 @app.get("/api/senders")
 def senders():
     return sorted(json.loads((Path(__file__).parent / "data" / "senders.json").read_text(encoding="utf-8")))  # א-ב for the dropdowns
