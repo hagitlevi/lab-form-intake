@@ -106,6 +106,12 @@ class TestScoreForm(unittest.TestCase):
         self.assertEqual(conf.national_id.state, "safe")
         self.assertEqual(conf.national_id.reasons, [ID_WARNING])
 
+    def test_invalid_id_without_ocr_match_stays_review(self):
+        form = ExtractedForm(page_indexes=[0], national_id=FieldValue(value="123456783"))
+        conf = score_form(form, [page([word("999999999", 0, 0)])], TODAY)
+        self.assertEqual(conf.national_id.state, "review")
+        self.assertEqual(conf.national_id.reasons, ["לא אומת על ידי מקור נוסף", ID_WARNING])
+
     def test_ten_digit_id_is_kept_whole(self):
         form = ExtractedForm(page_indexes=[0], national_id=FieldValue(value="0011223344"))
         conf = score_form(form, [page([word("0011223344", 0, 0)])], TODAY)
