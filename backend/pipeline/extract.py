@@ -135,11 +135,25 @@ def _serialize_content(blocks) -> list[dict]:
     return out
 
 
+def _unwrap_forms(raw: dict) -> dict:
+    """The model sometimes sends `forms` as a JSON string, often wrapping a whole
+    {"forms": [...]} object. Unwrap it before validation; anything else is left as-is."""
+    forms = raw.get("forms")
+    if isinstance(forms, str):
+        try:
+            forms = json.loads(forms)
+        except json.JSONDecodeError:
+            return raw  # let validation fail and the retry handle it
+    if isinstance(forms, dict) and "forms" in forms:
+        forms = forms["forms"]
+    return {**raw, "forms": forms}
+
+
 def _find_tool_use(response) -> Optional[tuple[str, dict]]:
     """Return (tool_use_id, input_dict) for the extract_forms call, or None."""
     for b in response.content:
         if b.type == "tool_use" and b.name == TOOL_NAME:
-            return b.id, b.input
+            return b.id, _unwrap_forms(b.input)
     return None
 
 
@@ -154,7 +168,7 @@ def _call_once(
         system=_load_prompt(),
         messages=messages,
         tools=[_tool_def()],
-        tool_choice={"type": "auto"},
+        tool_choice={"type": "tool", "name": TOOL_NAME},
     )
 
 

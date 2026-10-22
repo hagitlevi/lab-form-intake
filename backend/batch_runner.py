@@ -212,7 +212,7 @@ def _run_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[i
             forms = [ExtractedForm(page_indexes=list(range(len(group.pages))), notes=f"extraction_error: {exc}")]
 
         for form in forms:
-            form_error = None
+            form_error = form.notes if (form.notes or "").startswith("extraction_error") else None
             try:
                 form_pages = [group_pagedata[i] for i in form.page_indexes]
                 confidence = score_form(form, form_pages, today)
