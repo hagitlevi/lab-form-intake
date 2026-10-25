@@ -244,3 +244,103 @@ class TestScoreForm(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRunsAndDates(unittest.TestCase):
+    """Numbers split over 3+ OCR words, and dates compared by day/month/year."""
+
+    def _boxed(self, digits, top=100):
+        return [word(ch, 100 + 25 * i, top, width=20) for i, ch in enumerate(digits)]
+
+    def test_id_in_nine_boxes_matches(self):
+        m = find_match("011223344", [page(self._boxed("011223344"))], normalize_digits)
+        self.assertEqual(m.kind, "exact")
+        self.assertEqual(m.bbox[0], 100)
+
+    def test_run_in_reverse_ocr_order_matches(self):
+        words = list(reversed(self._boxed("123456782")))
+        self.assertEqual(find_match("123456782", [page(words)], normalize_digits).kind, "exact")
+
+    def test_split_words_far_apart_do_not_join(self):
+        words = [word("0112", 100, 100), word("233", 600, 100), word("44", 1200, 100)]
+        self.assertEqual(find_match("011223344", [page(words)], normalize_digits).kind, "none")
+
+    def test_words_on_different_lines_do_not_join(self):
+        words = [word("011", 100, 100), word("223", 155, 300), word("344", 210, 500)]
+        self.assertEqual(find_match("011223344", [page(words)], normalize_digits).kind, "none")
+
+    def _date_conf(self, words, day=31, month=8, year=2026, raw="31-08-2026"):
+        form = ExtractedForm(
+            page_indexes=[0],
+            received_date=DateValue(day=day, month=month, year=year, date_source="received_stamp", raw_text=raw),
+        )
+        return score_form(form, [page(words)], date(2026, 10, 25)).received_date
+
+    def test_stamp_date_split_into_three_words_is_safe(self):
+        words = [word("31", 100, 100, width=25), word("-08-", 130, 100, width=40), word("2026", 175, 100, width=45)]
+        self.assertEqual(self._date_conf(words).state, "safe")
+
+    def test_date_without_leading_zeros_is_safe(self):
+        self.assertEqual(self._date_conf([word("31.8.26", 100, 100)]).state, "safe")
+
+    def test_date_with_time_next_to_it_is_safe(self):
+        words = [word("31.08.26", 100, 100, width=60), word("16:07", 165, 100)]
+        self.assertEqual(self._date_conf(words, raw="31.08.26 16:07").state, "safe")
+
+    def test_ocr_date_without_year_is_safe(self):
+        self.assertEqual(self._date_conf([word("31/8", 100, 100)]).state, "safe")
+
+    def test_different_day_is_not_safe(self):
+        self.assertEqual(self._date_conf([word("30.08.2026", 100, 100)]).state, "review")
+
+    def test_different_year_is_not_safe(self):
+        self.assertEqual(self._date_conf([word("31.08.2025", 100, 100)]).state, "review")
+
+    def test_two_small_numbers_with_space_are_not_a_date(self):
+        words = [word("31", 100, 100, width=25), word("8", 130, 100, width=15)]
+        self.assertEqual(self._date_conf(words).state, "review")
+
+    def _inferred(self, words):
+        form = ExtractedForm(
+            page_indexes=[0],
+            received_date=DateValue(day=31, month=8, year=2026, year_inferred=True,
+                                    date_source="handwritten", raw_text="31.8"),
+        )
+        return score_form(form, [page(words)], date(2026, 10, 25)).received_date
+
+    def test_inferred_year_confirmed_by_ocr_full_date_is_safe(self):
+        self.assertEqual(self._inferred([word("31.08.2026", 100, 100)]).state, "safe")
+
+    def test_inferred_year_with_ocr_date_without_year_stays_review(self):
+        r = self._inferred([word("31.8", 100, 100)])
+        self.assertEqual(r.state, "review")
+        self.assertTrue(any("הוערכה" in x for x in r.reasons))
+
+    def test_inferred_year_with_ocr_other_year_stays_review(self):
+        self.assertEqual(self._inferred([word("31.08.2025", 100, 100)]).state, "review")
+
+    def test_stamp_year_misread_as_impossible_year_is_safe(self):
+        # Google read the "18-06-2026" stamp as "18-06-2726"
+        self.assertEqual(self._date_conf([word("31-08-2726", 100, 100)]).state, "safe")
+
+    def test_plausible_other_year_one_digit_off_stays_review(self):
+        # 2025 is a real year, so it is a different date, not a misread
+        self.assertEqual(self._date_conf([word("31-08-2025", 100, 100)]).state, "review")
+
+    def test_impossible_year_two_digits_off_stays_review(self):
+        self.assertEqual(self._date_conf([word("31-08-2799", 100, 100)]).state, "review")
+
+
+class TestSeveralCentralNumbers(unittest.TestCase):
+    def test_sibling_central_barcode_is_not_a_conflict(self):
+        # three tubes, only one barcode decoded (e.g. a phone photo): the other two must not be
+        # "barcode does not match" just because their sibling's barcode is on the page
+        form = ExtractedForm(page_indexes=[0], central_numbers=[FieldValue(value=v) for v in ("937309", "937310", "937311")])
+        pg = page([word("937309", 100, 100), word("937311", 100, 300)], barcodes=[barcode("937310")])
+        conf = score_form(form, [pg], TODAY)
+        self.assertEqual([c.state for c in conf.central_numbers], ["safe", "safe", "safe"])
+
+    def test_unrelated_six_digit_barcode_is_still_a_conflict(self):
+        form = ExtractedForm(page_indexes=[0], central_numbers=[FieldValue(value="937309")])
+        conf = score_form(form, [page([word("937309", 100, 100)], barcodes=[barcode("123456")])], TODAY)
+        self.assertEqual(conf.central_numbers[0].state, "review")

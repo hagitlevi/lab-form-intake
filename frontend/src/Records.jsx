@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { navigate } from './App.jsx'
-import { call, errText } from './fieldEdit.js'
+import { call, errText, toIL } from './fieldEdit.js'
 
 const HEADERS = ['סטטוס', 'שם', 'ת״ז', 'מספר מרכזי', 'תאריך קבלה', 'גורם שולח', 'מספר התחייבות']
 const FILTERS = [['', 'הכל'], ['pending', 'ממתינות'], ['approved', 'אושרו']]
@@ -94,7 +94,7 @@ export default function Records() {
                   <td>{[r.first_name.value, r.last_name.value].filter(Boolean).join(' ') || <span className="empty">—</span>}</td>
                   <td><Nums values={[r.national_id.value]} /></td>
                   <td><Nums values={r.central_numbers.map((c) => c.value)} /></td>
-                  <td><Nums values={[r.received_date.value]} /></td>
+                  <td><Nums values={[toIL(r.received_date.value)]} /></td>
                   <td>{r.sender.value || <span className="empty">—</span>}</td>
                   <td><Nums values={[r.commitment_number.value]} /></td>
                 </tr>

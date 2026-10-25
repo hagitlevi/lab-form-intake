@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
 
 import cv2
@@ -24,6 +25,18 @@ _SINGULAR = {"central_numbers": "central_number", "commitment_numbers": "commitm
 MANUAL_OVERRIDE_REASON = "אושר ידנית למרות שגיאת אימות"
 
 
+def _parse_edited_date(text: str) -> date:
+    """A date typed in the review screen: Israeli DD/MM/YYYY (also . or -, 2-digit year = 20xx)
+    or ISO YYYY-MM-DD. Raises ValueError otherwise. Stored as ISO."""
+    text = text.strip()
+    m = re.fullmatch(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})", text)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), m.group(3)
+        return date(2000 + int(y) if len(y) == 2 else int(y), mo, d)
+    y, mo, d = (int(x) for x in text.split("-"))
+    return date(y, mo, d)
+
+
 def _normalize_scalar(name: str, value, sender_value) -> tuple[str | None, list[str]]:
     if value is None:
         return None, []
@@ -34,11 +47,10 @@ def _normalize_scalar(name: str, value, sender_value) -> tuple[str | None, list[
         return (matched or value), ([] if matched else ["השולח אינו ברשימה הסגורה"])
     if name == "received_date":
         try:
-            y, m, d = (int(x) for x in str(value).split("-"))
-            iso_date = date(y, m, d)
+            iso_date = _parse_edited_date(str(value))
         except (ValueError, TypeError):
             return str(value), ["תאריך לא תקין"]
-        return value, (["התאריך בעתיד"] if iso_date > date.today() else [])
+        return iso_date.isoformat(), (["התאריך בעתיד"] if iso_date > date.today() else [])
     return value, []
 
 

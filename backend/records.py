@@ -129,6 +129,13 @@ def rows_to_csv_bytes(rows: list[dict]) -> bytes:
     return b"\xef\xbb\xbf" + buf.getvalue().encode("utf-8")
 
 
+def _il_date(v: str | None) -> str | None:
+    """ISO YYYY-MM-DD -> DD/MM/YYYY for the printable PDF (CSV keeps ISO for other systems)."""
+    if v and len(v) == 10 and v[4] == "-" and v[7] == "-":
+        return f"{v[8:10]}/{v[5:7]}/{v[0:4]}"
+    return v
+
+
 def rows_to_pdf_bytes(rows: list[dict]) -> bytes:
     """Records table as an RTL A4-landscape PDF (PyMuPDF Story; its built-in Hebrew font)."""
     def num(v):
@@ -140,7 +147,7 @@ def rows_to_pdf_bytes(rows: list[dict]) -> bytes:
             html.escape(" ".join(filter(None, (r["first_name"]["value"], r["last_name"]["value"])))) or "—",
             num(r["national_id"]["value"]),
             ", ".join(num(c["value"]) for c in r["central_numbers"] if c["value"]) or "—",
-            num(r["received_date"]["value"]),
+            num(_il_date(r["received_date"]["value"])),
             html.escape(r["sender"]["value"] or "") or "—",
             num(r["commitment_number"]["value"]),
         )) + "</tr>"

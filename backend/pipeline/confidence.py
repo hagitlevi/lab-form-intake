@@ -136,6 +136,39 @@ def _union_bbox(a: Word, b: Word) -> tuple[int, int, int, int]:
     return (x0, y0, x1 - x0, y1 - y0)
 
 
+def _union_bbox_all(ws: list[Word]) -> tuple[int, int, int, int]:
+    x0 = min(w.left for w in ws)
+    y0 = min(w.top for w in ws)
+    x1 = max(w.left + w.width for w in ws)
+    y1 = max(w.top + w.height for w in ws)
+    return (x0, y0, x1 - x0, y1 - y0)
+
+
+MAX_RUN_WORDS = 10
+_NUMERIC_WORD = re.compile(r"[\d.\-/:]*\d[\d.\-/:]*")  # digits plus date/number separators, no letters
+
+
+def _numeric_runs(words: list[Word], min_len: int, max_len: int = MAX_RUN_WORDS):
+    """Consecutive OCR words (in OCR order) that are each numeric and pairwise adjacent on the
+    same line - a number or a date printed in boxes or split by a stamp's spacing ("31 -08- 2026").
+    Yields each run in both orders (OCR word order vs. reading order can differ on RTL pages)."""
+    n = len(words)
+    for i in range(n):
+        if not _NUMERIC_WORD.fullmatch(words[i].text.strip()):
+            continue
+        run = [words[i]]
+        for j in range(i + 1, min(n, i + max_len)):
+            w = words[j]
+            if not _NUMERIC_WORD.fullmatch(w.text.strip()) or not _adjacent(run[-1], w):
+                break
+            run.append(w)
+            if len(run) >= min_len:
+                yield list(run)
+                yield list(reversed(run))
+        if min_len <= 1:
+            yield run[:1]
+
+
 def _adjacent(a: Word, b: Word) -> bool:
     """Same line, close together - two OCR words that are really one number split by a
     visual gap (e.g. Maccabi's "2648 00879")."""
@@ -166,6 +199,12 @@ def find_match(value: str, pages: list[PageData], normalize_fn) -> Match:
     for text, w, page_number, source in candidates:
         if text == value:
             return Match("exact", _bbox_of(w), page_number, source)
+
+    # numbers split over 3+ words (ID in boxes, stamp spacing) - exact only, never "near"
+    for page in pages:
+        for run in _numeric_runs(page.words, min_len=3):
+            if "".join(normalize_fn(w.text) for w in run) == value:
+                return Match("exact", _union_bbox_all(run), page.page_number, page.source)
 
     same_len = [(t, w, p, s) for (t, w, p, s) in candidates if len(t) == len(value)]
     for text, w, page_number, source in same_len:
@@ -216,6 +255,48 @@ def score_national_id(fv: Optional[FieldValue], pages: list[PageData]) -> FieldR
     return FieldResult(value=padded, state="review", reasons=["לא אומת על ידי מקור נוסף", *warn])
 
 
+_SEP = r"\s*[.\-/]\s*"  # a real separator, spaces around it allowed ("31 -08- 2026")
+_DMY = re.compile(rf"\D{{0,2}}(\d{{1,2}}){_SEP}(\d{{1,2}})(?:{_SEP}(\d{{4}}|\d{{2}}))?\D{{0,2}}")
+# spaces only (boxed digits "31 08 2026") - only with a 4-digit year, so "1 6" in a table never reads as a date
+_DMY_SPACES = re.compile(r"(\d{1,2})\s+(\d{1,2})\s+(\d{4})")
+_YMD = re.compile(rf"\D{{0,2}}(\d{{4}}){_SEP}(\d{{1,2}}){_SEP}(\d{{1,2}})\D{{0,2}}")
+
+
+def _parse_date_text(text: str) -> Optional[tuple[int, int, Optional[int]]]:
+    """'31-08-2026', '25.8.26', '17/6', '31 -08- 2026', '31 08 2026', '2026-08-31' -> (day, month, year|None)."""
+    text = text.strip()
+    m = _YMD.fullmatch(text)
+    if m:
+        return int(m.group(3)), int(m.group(2)), int(m.group(1))
+    m = _DMY.fullmatch(text) or _DMY_SPACES.fullmatch(text)
+    if m:
+        y = m.group(3)
+        year = None if y is None else (2000 + int(y) if len(y) == 2 else int(y))
+        return int(m.group(1)), int(m.group(2)), year
+    return None
+
+
+def _misread_year(ocr_year: int, year: int) -> bool:
+    """OCR year that cannot be a real date year (e.g. a stamp's 2026 read as 2726) and is one
+    character away from the extracted year - an OCR misread, not a different date."""
+    a, b = str(ocr_year), str(year)
+    return not (1900 <= ocr_year <= 2100) and len(a) == len(b) and Hamming.distance(a, b) == 1
+
+
+def find_date_match(day: int, month: int, year: int, pages: list[PageData], require_year: bool = False) -> Match:
+    """An OCR word, or a run of adjacent numeric words, that reads as the same day and month,
+    and the same year when the OCR side has one (a stamp/handwriting with no year still counts)."""
+    for page in pages:
+        for run in _numeric_runs(page.words, min_len=1):
+            parsed = _parse_date_text(" ".join(w.text for w in run))
+            if parsed is None:
+                continue
+            d, m, y = parsed
+            if d == day and m == month and (y == year or (not require_year and (y is None or _misread_year(y, year)))):
+                return Match("exact", _union_bbox_all(run), page.page_number, page.source)
+    return Match("none")
+
+
 def score_received_date(dv: Optional[DateValue], pages: list[PageData], reference: date) -> FieldResult:
     if dv is None or (dv.day is None and dv.month is None and dv.year is None):
         return _missing()
@@ -230,15 +311,21 @@ def score_received_date(dv: Optional[DateValue], pages: list[PageData], referenc
                 reasons.append("התאריך בעתיד")
         except ValueError:
             reasons.append("תאריך לא תקין")
-    if dv.year_inferred:
-        reasons.append("השנה הוערכה אוטומטית ולא נקראה מהטופס")
+    if dv.year_inferred and iso is not None:
+        # the AI saw no year; if OCR shows this exact day/month WITH the inferred year, the year was read after all
+        yy, mm, dd = (int(x) for x in iso.split("-"))
+        if find_date_match(dd, mm, yy, pages, require_year=True).kind != "exact":
+            reasons.append("השנה הוערכה אוטומטית ולא נקראה מהטופס")
     if dv.date_source == "visit_date":
         reasons.append("התאריך מבוסס על תאריך ביקור, לא על חותמת קבלה")
     if reasons:
         return FieldResult(value=iso or "", state="review", reasons=reasons)
 
-    raw = (dv.raw_text or "").strip()
-    match = find_match(normalize_digits(raw), pages, normalize_digits) if raw else Match("none")
+    y, m, d = (int(x) for x in iso.split("-"))
+    match = find_date_match(d, m, y, pages)
+    if match.kind == "none":  # fallback: the old raw-digits comparison (keeps its near-match reason)
+        raw = (dv.raw_text or "").strip()
+        match = find_match(normalize_digits(raw), pages, normalize_digits) if raw else Match("none")
     if match.kind == "exact":
         return FieldResult(value=iso, state="safe", bbox=match.bbox, page=match.page, source=match.source)
     if match.kind == "near":
@@ -260,7 +347,8 @@ def score_sender(fv: Optional[FieldValue], pages: list[PageData]) -> FieldResult
     return FieldResult(value=matched, state="review", reasons=["לא אומת על ידי מקור נוסף"])
 
 
-def score_central_number(fv: FieldValue, pages: list[PageData], commitment_values: list[str] = ()) -> FieldResult:
+def score_central_number(fv: FieldValue, pages: list[PageData], commitment_values: list[str] = (),
+                         central_values: list[str] = ()) -> FieldResult:
     """No value -> review; not exactly 6 digits -> review; a decoded 6-digit barcode equal to
     the value -> safe; a different 6-digit barcode -> review, unless that barcode is one of
     the form's commitment numbers (Bnei Zion) and then ignored; no usable barcode (the common
@@ -271,7 +359,9 @@ def score_central_number(fv: FieldValue, pages: list[PageData], commitment_value
     if not re.fullmatch(r"\d{6}", value):
         return FieldResult(value=value, state="review", reasons=["מספר מרכזי חייב להכיל 6 ספרות"])
 
-    commitments = {normalize_digits(c) for c in commitment_values}
+    # barcodes that belong to another field of this form are not a conflict: the form's commitment
+    # numbers (Bnei Zion) and its OTHER central numbers (one sticker+barcode per tube, e.g. 937309/937310/937311)
+    commitments = {normalize_digits(c) for c in commitment_values} | ({normalize_digits(c) for c in central_values} - {value})
     barcodes = [(b, p.page_number, p.source) for p in pages for b in p.barcodes]
     six = [(b, n, src) for b, n, src in barcodes if re.fullmatch(r"\d{6}", b.value.strip()) and b.value.strip() not in commitments]
 
@@ -314,7 +404,8 @@ def score_form(form: ExtractedForm, pages: list[PageData], reference_date: date)
         first_name=_score_text_field(form.first_name.value if form.first_name else None, pages, normalize_hebrew_name),
         last_name=_score_text_field(form.last_name.value if form.last_name else None, pages, normalize_hebrew_name),
         national_id=score_national_id(form.national_id, pages),
-        central_numbers=[score_central_number(cn, pages, [c.value for c in form.commitment_numbers if c.value]) for cn in form.central_numbers] or [_missing()],
+        central_numbers=[score_central_number(cn, pages, [c.value for c in form.commitment_numbers if c.value],
+                                              [c.value for c in form.central_numbers if c.value]) for cn in form.central_numbers] or [_missing()],
         received_date=score_received_date(form.received_date, pages, reference_date),
         sender=sender_result,
         commitment_numbers=[score_commitment_number(cn, pages, sender_value) for cn in form.commitment_numbers] or [_missing()],

@@ -25,6 +25,7 @@ from backend.grouping import FormGroup, group_pages, page_facts_from_ocr
 from backend.pipeline import load_page
 from backend.pipeline.confidence import FieldResult, FormConfidence, PageData, _missing, score_form
 from backend.pipeline.extract import extract_form
+from backend.pipeline.google_ocr import rescore_with_google
 from backend.pipeline.models import ExtractedForm
 from backend.pipeline.scan import _failed_scan, scan_page
 
@@ -227,6 +228,7 @@ def _run_batch(batch_id: int, file_paths: list[str], file_id_by_position: dict[i
             try:
                 form_pages = [group_pagedata[i] for i in form.page_indexes]
                 confidence = score_form(form, form_pages, today)
+                confidence = rescore_with_google(form, form_pages, [group_images[i] for i in form.page_indexes], confidence, today)
                 form_page_ids = [group_page_ids[i] for i in form.page_indexes]
             except Exception as exc:
                 log.exception("scoring failed for a form in batch %s", batch_id)

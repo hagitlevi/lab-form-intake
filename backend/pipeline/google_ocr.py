@@ -1,10 +1,13 @@
-"""Optional OCR engine: Google Cloud Vision (DOCUMENT_TEXT_DETECTION) instead of Tesseract.
+"""Google Cloud Vision (DOCUMENT_TEXT_DETECTION), two optional uses. Both need GOOGLE_VISION_API_KEY.
 
-Off by default. Turn on with OCR_ENGINE=google and GOOGLE_VISION_API_KEY. run_ocr() in
-backend.pipeline delegates here; everything downstream still gets the same Word list.
+1. OCR_ENGINE=google: replaces Tesseract in run_ocr() (experiment, off by default).
+2. GOOGLE_VERIFY=1: third verification source. Only forms that still have a "review" field with a
+   value after score_form() send their page images to Google; the words are added to the
+   Tesseract words for one re-score (rescore_with_google) and then dropped - never cached, stored
+   or logged. A fallen-over call keeps the Tesseract-only result.
 
-Privacy: unlike Tesseract this sends page images to Google. Use it only on sample forms with
-replaced personal data, never in the cloud deployment without a decision on that.
+Privacy: both send page images to Google. Use them only on sample forms with replaced personal
+data, never in the cloud deployment without a decision on that.
 Google documents handwriting support for Latin scripts only, so Hebrew handwriting is a test.
 """
 
@@ -15,9 +18,20 @@ import json
 import os
 import urllib.error
 import urllib.request
+import logging
 
 import cv2
 import numpy as np
+
+log = logging.getLogger(__name__)
+
+from dotenv import load_dotenv
+
+load_dotenv()
+VERIFY = os.environ.get("GOOGLE_VERIFY", "").lower() in ("1", "true", "yes")
+if VERIFY and not os.environ.get("GOOGLE_VISION_API_KEY"):
+    log.warning("GOOGLE_VERIFY is on but GOOGLE_VISION_API_KEY is missing: Google verification disabled")
+    VERIFY = False
 
 URL = "https://vision.googleapis.com/v1/images:annotate"
 
@@ -84,3 +98,31 @@ def google_ocr(image: np.ndarray, scale: float = 1.0) -> list:
     if not ok:
         raise GoogleOcrError("JPEG encode failed")
     return parse_words(_annotate(buf.tobytes()), scale)
+
+
+def rescore_with_google(form, pages, images: list[bytes], confidence, today):
+    """Re-run score_form with Google words added, if any field with a value is still "review".
+    pages and images are the form's pages, same order. Never raises: on failure returns confidence."""
+    from dataclasses import replace
+
+    from backend.pipeline.confidence import score_form  # late import: confidence imports backend.pipeline
+
+    def fields(c):
+        for f in type(c).model_fields:
+            v = getattr(c, f)
+            yield from v if isinstance(v, list) else [v]
+
+    if not VERIFY or not any(f.state == "review" and f.value for f in fields(confidence)):
+        return confidence
+    try:
+        extended = [
+            replace(p, words=p.words + google_ocr(cv2.imdecode(np.frombuffer(img, np.uint8), cv2.IMREAD_COLOR)))
+            for p, img in zip(pages, images)
+        ]
+        new = score_form(form, extended, today)
+    except Exception as exc:  # GoogleOcrError or anything else: Tesseract-only result stays
+        log.warning("Google verification failed for pages %s: %s", [(p.source, p.page_number) for p in pages], exc)
+        return confidence
+    flipped = sum(a.state == "review" and b.state == "safe" for a, b in zip(fields(confidence), fields(new)))
+    log.info("Google verification flipped %d field(s) from review to safe", flipped)
+    return new
