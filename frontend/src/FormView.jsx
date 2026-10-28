@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, navigate } from './App.jsx'
 import WarnIcon from './WarnIcon.jsx'
-import { SHARED, call, errText, patchBody, patchField, rowReview, splitReasons, toIL, useFieldEdit } from './fieldEdit.js'
+import { SHARED, call, errText, patchBody, patchField, rowReview, splitReasons, useFieldEdit } from './fieldEdit.js'
 
 const LABELS = {
   first_name: 'שם פרטי', last_name: 'שם משפחה', national_id: 'ת״ז', received_date: 'תאריך קבלה',
@@ -19,7 +19,7 @@ function orderedItems(fields) {
 }
 
 function Field({ f, onSave, onSelect, onRemove, senders, reg }) {
-  const value = f.name === 'received_date' ? toIL(f.value ?? '') : (f.value ?? '')
+  const value = f.value ?? ''
   const review = isReview(f)
   const reasons = splitReasons(f.reasons)
   const num = NUM.has(f.name)

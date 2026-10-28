@@ -66,16 +66,3 @@ class TestResolveState(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class TestEditedDateFormats(unittest.TestCase):
-    """The review screen shows DD/MM/YYYY; a typed date in that format is stored as ISO."""
-
-    def test_israeli_formats_are_stored_as_iso(self):
-        from backend.forms_api import _normalize_scalar
-        for typed in ("31/08/2026", "31.8.2026", "31-08-26", "2026-08-31"):
-            self.assertEqual(_normalize_scalar("received_date", typed, None), ("2026-08-31", []), typed)
-
-    def test_invalid_date_is_flagged(self):
-        from backend.forms_api import _normalize_scalar
-        self.assertEqual(_normalize_scalar("received_date", "31/02/2026", None)[1], ["תאריך לא תקין"])

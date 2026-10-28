@@ -158,7 +158,7 @@ def _serialize_content(blocks) -> list[dict]:
     out = []
     for b in blocks:
         if b.type == "thinking":
-            out.append({"type": "thinking", "thinking": b.thinking, "signature": b.signature})
+            out.append({"type": "thinking", "thinking": b.thinking})
         elif b.type == "redacted_thinking":
             out.append({"type": "redacted_thinking", "data": b.data})
         elif b.type == "tool_use":

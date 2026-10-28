@@ -5,13 +5,6 @@ import { useRef, useState } from 'react'
 
 export const SHARED = ['first_name', 'last_name', 'national_id', 'received_date', 'sender']
 
-// Dates are stored as ISO (YYYY-MM-DD) and shown/edited the Israeli way (DD/MM/YYYY).
-// The server accepts both formats on PATCH (backend/forms_api.py).
-export const toIL = (v) => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '')
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : v
-}
-
 export async function call(url, method = 'POST', body) {
   const res = await fetch(url, {
     method,

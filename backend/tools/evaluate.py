@@ -30,15 +30,12 @@ from datetime import date, datetime
 from pathlib import Path
 
 import cv2
-import numpy as np
 
 from backend.grouping import group_pages, page_facts_from_ocr
 from backend.pipeline import split_files
 from backend.pipeline import extract as extract_mod
 from backend.pipeline.confidence import PageData, score_form, sender_fuzzy_match
 from backend.pipeline.extract import extract_form
-from backend.pipeline import google_ocr as gocr
-from backend.pipeline.google_ocr import rescore_with_google
 from backend.pipeline.normalize import normalize_date_iso, normalize_digits, normalize_hebrew_name, pad_national_id
 from backend.pipeline.scan import load_cache, scan_pages
 
@@ -185,10 +182,6 @@ def form_records(tf: dict, conf) -> list[dict]:
 
 # --- pipeline run ------------------------------------------------------------------
 
-def _date_like(text: str) -> bool:
-    return bool(re.search(r"\d", text) and re.search(r"[./\-]", text) and len(text) <= 14)
-
-
 def run_pipeline(paths: list[str], filled_pages: set, fresh: bool) -> dict:
     """Steps 1-5 as the batch runner does them. Returns pipeline forms, groups, skipped pages,
     timings and counters."""
@@ -236,25 +229,11 @@ def run_pipeline(paths: list[str], filled_pages: set, fresh: bool) -> dict:
             idx = [i for i in form.page_indexes if i < len(g.pages)] or [0]
             error = form.notes if (form.notes or "").startswith("extraction_error") else None
             try:
-                fpages = [pagedata[(g.pages[i].source, g.pages[i].page_number)] for i in form.page_indexes]
-                conf = score_form(form, fpages, today)
-                conf = rescore_with_google(form, fpages, [jpegs[(g.pages[i].source, g.pages[i].page_number)] for i in form.page_indexes], conf, today)  # no-op unless GOOGLE_VERIFY=1
+                conf = score_form(form, [pagedata[(g.pages[i].source, g.pages[i].page_number)] for i in form.page_indexes], today)
             except Exception as exc:
                 conf, error = None, f"{type(exc).__name__}: {exc}"
             first = g.pages[idx[0]]
-            # dev diagnostics only (sample forms): Tesseract words that look like part of a date
-            date_tokens = [w.text for i in idx for w in pagedata[(g.pages[i].source, g.pages[i].page_number)].words
-                           if _date_like(w.text)]
-            google_tokens = []
-            if gocr.VERIFY and conf is not None and conf.received_date.state == "review" and conf.received_date.value:
-                try:  # dev diagnostics: what Google saw, for dates that Google did NOT confirm
-                    for i in idx:
-                        img = cv2.imdecode(np.frombuffer(jpegs[(g.pages[i].source, g.pages[i].page_number)], np.uint8), cv2.IMREAD_COLOR)
-                        google_tokens += [w.text for w in gocr.google_ocr(img) if _date_like(w.text)]
-                except Exception as exc:
-                    google_tokens = [f"(google failed: {type(exc).__name__})"]
-            out_forms.append({"key": (Path(first.source).name, first.page_number), "conf": conf, "error": error,
-                              "date_tokens": date_tokens, "google_date_tokens": google_tokens})
+            out_forms.append({"key": (Path(first.source).name, first.page_number), "conf": conf, "error": error})
     return {"forms": out_forms, "groups": groups, "skipped": skipped, "ai_seconds": ai_seconds,
             "ai_calls": len(todo), "ai_groups_total": len(groups), "cache_hits": hits.n}
 
@@ -340,20 +319,6 @@ def build_report(args_files, truth_forms, filled, res, truth_labels, records, to
         for s in sorted({r["sender"] for r in records}):
             sub = [r for r in records if r["sender"] == s]
             L += [f"### {s} ({len({r['form'] for r in sub})} forms)", "", table(sub), ""]
-        L += ["## Correct values still in review", "",
-              "Why a correct value stayed orange. For received_date, `OCR date-like words` = Tesseract words on the "
-              "form's pages that contain a digit and . / or -; Google words the same, fetched only for dates Google did not confirm.", ""]
-        cr = [r for r in records if r["cat"] == "correct_review"]
-        if not cr:
-            L += ["None.", ""]
-        else:
-            L += ["| form | field | value | reason | Tesseract date-like words | Google date-like words |",
-                  "|---|---|---|---|---|---|"]
-            for r in sorted(cr, key=lambda r: (r["field"], r["form"])):
-                toks = " · ".join(f"`{t}`" for t in r.get("date_tokens", [])[:12]) or "-"
-                gtoks = " · ".join(f"`{t}`" for t in r.get("google_date_tokens", [])[:12]) or "-"
-                L.append(f"| {r['form']} | {r['field']} | {r['got']} | {'; '.join(r['reasons']) or '-'} | {toks} | {gtoks} |")
-            L.append("")
         L += ["## WRONG+SAFE and invented values", ""]
         crit = [r for r in records if r["cat"] in ("wrong_safe", "invented")]
         if not crit:
@@ -404,12 +369,7 @@ def main(argv: list[str]) -> int:
     records = []
     for tf in filled:
         pf = by_key.get((tf["file"], tf["pages"][0]))
-        recs = form_records(tf, pf["conf"] if pf else None)
-        for r in recs:
-            is_date = pf and r["field"] == "received_date"
-            r["date_tokens"] = pf.get("date_tokens", []) if is_date else []
-            r["google_date_tokens"] = pf.get("google_date_tokens", []) if is_date else []
-        records += recs
+        records += form_records(tf, pf["conf"] if pf else None)
 
     report = build_report(names, truth_forms, filled, res, truth_labels, records, time.monotonic() - t0, args.fresh)
     REPORT_PATH.write_text(report, encoding="utf-8")

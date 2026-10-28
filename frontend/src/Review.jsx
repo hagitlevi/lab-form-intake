@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, lastBatch, navigate } from './App.jsx'
 import WarnIcon from './WarnIcon.jsx'
-import { SHARED, call, errText, patchBody, patchField, rowReview, splitReasons, toIL, useFieldEdit } from './fieldEdit.js'
+import { SHARED, call, errText, patchBody, patchField, rowReview, splitReasons, useFieldEdit } from './fieldEdit.js'
 
 const HEADERS = ["עמ'", 'שם פרטי', 'שם משפחה', 'ת״ז', 'מספר מרכזי', 'תאריך קבלה', 'גורם שולח', 'מספר התחייבות', '']
 const NUMERIC = new Set(['national_id', 'central_numbers', 'received_date', 'commitment_number'])
 
-function Cell({ field, numeric, onSave, options, isDate }) {
+function Cell({ field, numeric, onSave, options }) {
   const [editing, setEditing] = useState(false)
-  const value = isDate ? toIL(field.value ?? '') : (field.value ?? '')
+  const value = field.value ?? ''
   const review = field.state === 'review'
   const reasons = splitReasons(field.reasons)
   const { setDraft, err, setErr, commit, inputProps } = useFieldEdit(value, onSave)
@@ -249,7 +249,7 @@ export default function Review({ id }) {
             const prev = formIds[formIds.indexOf(fid) - 1]
             const sharedCell = (n) => (
               <td className="cell" key={n}>
-                <Cell field={r[n]} numeric={NUMERIC.has(n)} isDate={n === 'received_date'} options={n === 'sender' ? senders : undefined}
+                <Cell field={r[n]} numeric={NUMERIC.has(n)} options={n === 'sender' ? senders : undefined}
                   onSave={patch(fid, (v) => patchBody(n, 0, v))} />
               </td>
             )
