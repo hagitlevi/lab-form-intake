@@ -38,7 +38,7 @@ from backend.pipeline import extract as extract_mod
 from backend.pipeline.confidence import PageData, score_form, sender_fuzzy_match
 from backend.pipeline.extract import extract_form
 from backend.pipeline import google_ocr as gocr
-from backend.pipeline.google_ocr import rescore_with_google
+from backend.pipeline.gemini_verify import verify_with_gemini
 from backend.pipeline.normalize import normalize_date_iso, normalize_digits, normalize_hebrew_name, pad_national_id
 from backend.pipeline.scan import load_cache, scan_pages
 
@@ -238,7 +238,7 @@ def run_pipeline(paths: list[str], filled_pages: set, fresh: bool) -> dict:
             try:
                 fpages = [pagedata[(g.pages[i].source, g.pages[i].page_number)] for i in form.page_indexes]
                 conf = score_form(form, fpages, today)
-                conf = rescore_with_google(form, fpages, [jpegs[(g.pages[i].source, g.pages[i].page_number)] for i in form.page_indexes], conf, today)  # no-op unless GOOGLE_VERIFY=1
+                conf = verify_with_gemini(conf, [jpegs[(g.pages[i].source, g.pages[i].page_number)] for i in form.page_indexes])  # no-op unless GEMINI_VERIFY=1
             except Exception as exc:
                 conf, error = None, f"{type(exc).__name__}: {exc}"
             first = g.pages[idx[0]]

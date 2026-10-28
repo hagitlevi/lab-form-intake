@@ -19,6 +19,7 @@ import os
 import urllib.error
 import urllib.request
 import logging
+import time
 
 import cv2
 import numpy as np
@@ -93,16 +94,28 @@ def parse_words(resp: dict, scale: float = 1.0) -> list:
     return words
 
 
-def google_ocr(image: np.ndarray, scale: float = 1.0) -> list:
+_TRANSIENT = ("unavailable", "deadline", "timed out", "503", "502", "500", "429", "rate")
+
+
+def google_ocr(image: np.ndarray, scale: float = 1.0, attempts: int = 3) -> list:
     ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 92])
     if not ok:
         raise GoogleOcrError("JPEG encode failed")
-    return parse_words(_annotate(buf.tobytes()), scale)
+    for attempt in range(attempts):
+        try:
+            return parse_words(_annotate(buf.tobytes()), scale)
+        except GoogleOcrError as e:
+            # "The service is currently unavailable" and similar are short Google hiccups: retry with backoff
+            if attempt == attempts - 1 or not any(t in str(e).lower() for t in _TRANSIENT):
+                raise
+            log.info("Google Vision transient error (attempt %d/%d): %s", attempt + 1, attempts, e)
+            time.sleep(1.5 * (attempt + 1))
 
 
-def rescore_with_google(form, pages, images: list[bytes], confidence, today):
+def rescore_with_google(form, pages, images: list[bytes], confidence, today, google_words_out: list | None = None):
     """Re-run score_form with Google words added, if any field with a value is still "review".
-    pages and images are the form's pages, same order. Never raises: on failure returns confidence."""
+    pages and images are the form's pages, same order. Never raises: on failure returns confidence.
+    google_words_out (dev debug only, DEBUG_SOURCES): receives one Google word list per page when Google ran."""
     from dataclasses import replace
 
     from backend.pipeline.confidence import score_form  # late import: confidence imports backend.pipeline
@@ -115,14 +128,44 @@ def rescore_with_google(form, pages, images: list[bytes], confidence, today):
     if not VERIFY or not any(f.state == "review" and f.value for f in fields(confidence)):
         return confidence
     try:
-        extended = [
-            replace(p, words=p.words + google_ocr(cv2.imdecode(np.frombuffer(img, np.uint8), cv2.IMREAD_COLOR)))
-            for p, img in zip(pages, images)
-        ]
+        gwords = [google_ocr(cv2.imdecode(np.frombuffer(img, np.uint8), cv2.IMREAD_COLOR)) for img in images]
+        extended = [replace(p, words=p.words + g) for p, g in zip(pages, gwords)]
+        if google_words_out is not None:
+            google_words_out.extend(gwords)
         new = score_form(form, extended, today)
     except Exception as exc:  # GoogleOcrError or anything else: Tesseract-only result stays
         log.warning("Google verification failed for pages %s: %s", [(p.source, p.page_number) for p in pages], exc)
         return confidence
     flipped = sum(a.state == "review" and b.state == "safe" for a, b in zip(fields(confidence), fields(new)))
     log.info("Google verification flipped %d field(s) from review to safe", flipped)
-    return new
+    return _add_ocr_agreement(new, pages, [replace(p, words=g) for p, g in zip(pages, gwords)])
+
+
+def _add_ocr_agreement(confidence, tess_pages, google_pages):
+    """Step after Claude-vs-Tesseract and Claude-vs-Google: for a field still in review, if Tesseract
+    and Google agree with EACH OTHER on a value one character away from the AI's, say so in the
+    reasons. The value and the state are never changed (a field the AI got wrong stays orange)."""
+    from backend.pipeline.confidence import ocr_agreement_reason
+    from backend.pipeline.normalize import normalize_digits, normalize_hebrew_name, pad_national_id
+
+    def id_norm(t):
+        d = normalize_digits(t)
+        return d.lstrip("0")  # IDs compare without leading zeros (never padded)
+
+    norms = {"first_name": normalize_hebrew_name, "last_name": normalize_hebrew_name, "national_id": id_norm,
+             "central_numbers": normalize_digits, "commitment_numbers": normalize_digits}
+    updates = {}
+    try:
+        for name, norm in norms.items():
+            current = getattr(confidence, name)
+            items = current if isinstance(current, list) else [current]
+            out = []
+            for r in items:
+                reason = ocr_agreement_reason(norm(r.value), tess_pages, google_pages, norm) \
+                    if r.state == "review" and r.value else None
+                out.append(r.model_copy(update={"reasons": [reason, *r.reasons]}) if reason else r)
+            updates[name] = out if isinstance(current, list) else out[0]
+        return confidence.model_copy(update=updates)
+    except Exception as exc:  # an extra hint must never break a form
+        log.warning("OCR agreement check failed: %s", exc)
+        return confidence

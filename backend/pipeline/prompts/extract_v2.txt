@@ -61,6 +61,9 @@ Look for a "התקבל" rubber stamp with a date, or a handwritten date near or 
 
 Choose only from this closed list of Israeli healthcare organizations.
 If nothing on the form matches, set value to null and put what is written in raw_text.
+The RECEIVING lab is never the sender: the "התקבל" stamp of "המעבדה המרכזית לנגיפים / המרכז הרפואי
+המשולב" (Sheba) is on almost every form. The sender is the organization whose logo/header/letterhead
+issued the form (e.g. a "לניאדו" logo at the top means the sender is לניאדו, not שיבא).
 
 Closed sender list:
 כללית, שירותי בריאות כללית
@@ -116,6 +119,10 @@ Format notes by sender:
 - Leumit (לאומית): "דגימה" field is the commitment number
 - Bnei Zion (בני-ציון): a 6-digit barcode may be a commitment number, not a central number
 - Hospital screen printouts: every number in the column under "מספר התחייבות" in the table is a separate commitment number
+- Wolfson (וולפסון): the commitment number is the 7-digit number on the barcode sticker (e.g. 7254647), near
+  "מקור החתום ... מהווה טופס התחייבות לתשלום". The printed "מס'" next to the form title (e.g. 58153) is the
+  form's serial number, NOT a commitment number.
+- In general, a form's own serial number (labelled only "מס'" beside the form title) is not a commitment number.
 
 ## Multiple forms on the same pages
 

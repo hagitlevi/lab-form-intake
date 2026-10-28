@@ -29,7 +29,7 @@ load_dotenv()
 
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5-5")
 AI_MAX_IMAGE_PX = int(os.environ.get("AI_MAX_IMAGE_PX", "2048"))
-PROMPT_VERSION = "v4"
+PROMPT_VERSION = "v6"
 AI_BLUE_CROPS = os.environ.get("AI_BLUE_CROPS", "0").lower() in ("1", "true", "yes")
 TOOL_NAME = "extract_forms"
 CACHE_DIR = Path("samples/debug/ai_cache")

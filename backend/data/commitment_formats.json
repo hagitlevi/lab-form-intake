@@ -1,7 +1,8 @@
 {
   "_note": "Commitment-number regex per sender, built from what samples/commitments_part1.pdf and part2.pdf actually show (not the full closed sender list in backend/data/senders.json). A sender with no entry here has 'no rule' per CLAUDE.md - the format check passes trivially rather than guessing a pattern with no evidence.",
-  "כללית": "^\\d{9}$",
-  "מכבי": "^\\d{4}\\s?\\d{5}$",
+  "כללית": "^\\d{8,9}$",
+  "מכבי": "^\\d{4}\\s?\\d{4,5}$",
   "מאוחדת": "^[A-Za-z]?\\d{6,9}$",
-  "בני-ציון": "^\\d{6}$"
+  "בני-ציון": "^\\d{6}$",
+  "וולפסון": "^\\d{7}$"
 }

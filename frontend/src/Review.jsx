@@ -35,6 +35,8 @@ function Cell({ field, numeric, onSave, options, isDate }) {
       {review && reasons.review.length > 0 && <span className="reason">לבדיקה</span>}
       {review && !editing && !options && reasons.review.length > 0 && <div className="hint">Enter לאישור</div>}
       <WarnIcon reasons={reasons.warnings} />
+      {reasons.debug.length > 0 && reasons.review.map((r, i) => <div key={'r' + i} className="debug">סיבה: {r}</div>)}
+      {reasons.debug.map((d, i) => <div key={i} className="debug" dir="ltr">{d}</div>)}
       {err && <div className="err">{err}</div>}
       {review && value === '' && !editing && (
         <button className="btn btn-ghost btn-sm confirm" onClick={async (e) => { e.stopPropagation(); if (await commit(true)) setEditing(false) }}>אישור כריק</button>

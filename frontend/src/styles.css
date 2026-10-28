@@ -192,3 +192,7 @@ main.wide { max-width: 1600px; padding: 32px 24px; gap: 20px; }
 .warnicon-btn { background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 16px; line-height: 1; color: #B26A00; }
 .warnicon-pop { position: absolute; inset-inline-start: 0; top: 100%; z-index: 10; min-width: 180px; max-width: 260px; display: flex; flex-direction: column; gap: 2px;
   background: #fff; border: 1px solid var(--border, #DDE3E8); border-radius: 6px; padding: 6px 8px; box-shadow: 0 2px 8px rgba(0,0,0,.15); font-size: 13px; color: var(--error); }
+
+/* DEV ONLY: per-source debug line (DEBUG_SOURCES=1, backend/pipeline/debug_sources.py) */
+.debug { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #8a8a8a; white-space: normal;
+  word-break: break-word; margin-top: 4px; opacity: .85; text-align: left; }

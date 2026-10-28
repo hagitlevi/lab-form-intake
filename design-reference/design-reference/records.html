@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>records (design reference)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F7F9;font-family:'Heebo',system-ui,sans-serif;color:#17232E}
+a{color:#0B6A85}a:hover{color:#084F63}
+.nav{padding:8px 14px;border-radius:8px;text-decoration:none;color:#3D4D5C;font-weight:500}
+.nav:hover{background:#EEF3F6;color:#17232E}
+.nav-on{background:#E3F0F4;color:#084F63}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 20px;border-radius:10px;font:inherit;font-weight:500;text-decoration:none;cursor:pointer;border:1px solid transparent}
+.btn-ghost{background:#FFFFFF;color:#17232E;border-color:#C9D3DB}
+.seg{min-height:40px;padding:0 16px;border:0;border-radius:8px;background:transparent;font:inherit;font-weight:500;color:#3D4D5C;cursor:pointer}
+.seg-on{background:#FFFFFF;color:#17232E;box-shadow:0 0 0 1px #C9D3DB}
+.tbl{width:100%;table-layout:fixed;border-collapse:collapse;font-size:15px}
+.tbl th,.tbl td{text-align:center;vertical-align:middle;overflow-wrap:anywhere;border-inline-end:1px solid #E3E8EC}
+.tbl th:last-child,.tbl td:last-child{border-inline-end:0}
+.tbl th{font-weight:500;color:#4F5F6E;font-size:14px;padding:12px 10px;background:#F1F5F8;border-bottom:2px solid #C9D3DB}
+.tbl td{height:56px;padding:12px 10px;border-bottom:1px solid #E3E8EC}
+.tbl tr:last-child td{border-bottom:0}
+.tbl th:first-child,.tbl td:first-child{border-inline-start:3px solid transparent}
+.tbl tbody tr:hover td{background:#EEF5F8}
+.tbl tbody tr:hover td:first-child{border-inline-start-color:#0B6A85}
+.tbl td:not(.flag):hover{background:#FFFFFF;box-shadow:inset 0 0 0 2px #0B6A85,0 2px 8px rgba(11,106,133,.18);transition:background 120ms,box-shadow 120ms;position:relative;z-index:1}
+.tbl tbody tr:hover td.flag{background:#FFF3E6}
+.tbl tbody tr td.flag:hover{background:#FFE6C7}
+.num{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:500}
+.b-ok{background:#E5F3EA;color:#1D6B37}
+.b-wait{background:#FFF3E6;color:#8A4500}
+</style>
+</head>
+<body>
+<div dir="rtl" lang="he" style="min-height: 100vh; display: flex; flex-direction: column">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DDE3E8">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 0 32px; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap">
+      <div style="display: flex; flex-direction: column; line-height: 1.25">
+        <span style="font-weight: 700; font-size: 17px">המעבדה המרכזית לנגיפים</span>
+        <span style="font-size: 13px; color: #5B6B7A">המרכז הרפואי שיבא</span>
+      </div>
+      <nav aria-label="ניווט ראשי" style="display: flex; gap: 4px">
+        <a class="nav" href="upload.html">קליטת טפסים</a>
+        <a class="nav nav-on" href="records.html" aria-current="page">רשומות</a>
+      </nav>
+    </div>
+  </header>
+
+  <main style="flex: 1; width: 100%; max-width: 1600px; margin: 0 auto; padding: 32px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+      <h1 style="margin: 0; font-size: 28px; font-weight: 700">רשומות</h1>
+      <button class="btn btn-ghost">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 18v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1"/></svg>
+        ייצוא CSV
+      </button>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+      <div style="position: relative; flex: 1 1 360px; max-width: 520px">
+        <label for="search" style="position: absolute; width: 1px; height: 1px; overflow: hidden">חיפוש רשומות</label>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B6B7A" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" style="position: absolute; right: 14px; top: 13px"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>
+        <input id="search" type="search" placeholder="חיפוש לפי ת״ז, מספר מרכזי או מספר התחייבות" style="width: 100%; min-height: 44px; box-sizing: border-box; padding: 0 42px 0 14px; border: 1px solid #C9D3DB; border-radius: 10px; font: inherit; font-size: 15px; background: #FFFFFF; color: #17232E">
+      </div>
+      <div role="group" aria-label="סינון לפי סטטוס" style="display: inline-flex; gap: 4px; padding: 4px; background: #E8EDF1; border-radius: 10px">
+        <button class="seg seg-on" aria-pressed="true">הכל (10)</button>
+        <button class="seg" aria-pressed="false">ממתינות (2)</button>
+        <button class="seg" aria-pressed="false">אושרו (8)</button>
+      </div>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1px solid #DDE3E8; border-radius: 14px; overflow: hidden">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th scope="col">סטטוס</th>
+            <th scope="col">שם</th>
+            <th scope="col">ת״ז</th>
+            <th scope="col">מספר מרכזי</th>
+            <th scope="col">תאריך קבלה</th>
+            <th scope="col">גורם שולח</th>
+            <th scope="col">מספר התחייבות</th>
+            <th scope="col">נקלט</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="badge b-wait">ממתינה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">945740</span></td><td><span class="num">11.08.2026</span></td><td>הלל יפה</td><td><span class="num">2648 00879</span></td><td><span class="num">18.10.2026</span></td></tr>
+          <tr><td><span class="badge b-wait">ממתינה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">946834</span></td><td><span class="num">20.08.2026</span></td><td>קפלן</td><td><span class="num">66608446</span></td><td><span class="num">18.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947768</span></td><td><span class="num">27.08.2026</span></td><td>שמיר (אסף הרופא)</td><td><span class="num">2646</span></td><td><span class="num">19.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">948205</span></td><td><span class="num">31.08.2026</span></td><td>שניידר</td><td style="color: #5B6B7A">אין בטופס</td><td><span class="num">19.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947476</span></td><td><span class="num">25.08.2026</span></td><td>אסותא אשדוד</td><td><span class="num">141046589</span></td><td><span class="num">19.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">946621</span></td><td><span class="num">18.08.2026</span></td><td>בני ציון</td><td><span class="num">436702</span></td><td><span class="num">19.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">945992</span></td><td><span class="num">13.08.2026</span></td><td>ברזילי</td><td><span class="num">11001</span></td><td><span class="num">19.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947468</span>, <span class="num">947469</span></td><td><span class="num">25.08.2026</span></td><td>וולפסון</td><td><span class="num">7254627</span></td><td><span class="num">19.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947328</span></td><td><span class="num">24.08.2026</span></td><td>לניאדו</td><td><span class="num">X132767</span></td><td><span class="num">19.10.2026</span></td></tr>
+          <tr><td><span class="badge b-ok">אושרה</span></td><td>ישראל ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">945598</span></td><td><span class="num">10.08.2026</span></td><td>שרון (כללית)</td><td><span class="num">375365293</span></td><td><span class="num">19.10.2026</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

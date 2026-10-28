@@ -100,17 +100,50 @@ def valid_israeli_id(padded: str) -> bool:
     return total % 10 == 0
 
 
+_FINALS = str.maketrans("ךםןףץ", "כמנפצ")
+
+
+def _sender_tokens(text: str) -> list[str]:
+    """Words of a sender name, for whole-word comparison: quotes dropped (רמב"ם -> רמבם), other
+    punctuation is a word break (בני-ציון -> בני ציון), final letters normalized."""
+    text = re.sub(r"[\"'״׳]", "", text or "").translate(_FINALS)
+    return re.findall(r"[\w]+", text)
+
+
+def _sender_key(text: str) -> str:
+    """Sender name as one letters-only string, for OCR matching ("וולפסון," == "וולפסון")."""
+    return "".join(_sender_tokens(text))
+
+
 def sender_fuzzy_match(value: str) -> Optional[str]:
+    """Closed-list sender for a free-text name: exact, then fuzzy on the whole string, then a list
+    name that appears as whole word(s) inside a long official name - e.g. "המרכז הרפואי האוניברסיטאי
+    ע"ש אדית וולפסון" -> "וולפסון". If two different list names appear, it is ambiguous: None."""
+    if not value:
+        return None
     if value in _SENDERS:
         return value
     match = fuzz_process.extractOne(value, _SENDERS, scorer=fuzz_ratio, score_cutoff=SENDER_FUZZY_CUTOFF)
-    return match[0] if match else None
+    if match:
+        return match[0]
+    tokens = _sender_tokens(value)
+    found = []
+    for name in _SENDERS:
+        nt = _sender_tokens(name)
+        if nt and any(tokens[i:i + len(nt)] == nt for i in range(len(tokens) - len(nt) + 1)):
+            found.append(name)
+    # a name contained in another found name is the same hit ("לין" inside a longer name never happens
+    # today, but keep the longest), then require exactly one
+    found = [n for n in found if not any(n != o and _sender_key(n) in _sender_key(o) for o in found)]
+    return found[0] if len(found) == 1 else None
 
 
 def commitment_format_ok(digits_value: str, sender: Optional[str]) -> bool:
     if not sender or sender not in _COMMITMENT_FORMATS:
         return True  # unknown sender -> no rule
-    return bool(re.match(_COMMITMENT_FORMATS[sender], digits_value))
+    # leading zeros are padding, not part of the format (truth: Clalit "000302651707" is a 9-digit number)
+    stripped = digits_value[:1] + digits_value[1:].lstrip("0") if digits_value[:1].isalpha() else digits_value.lstrip("0")
+    return bool(re.match(_COMMITMENT_FORMATS[sender], stripped))
 
 
 # --- Cross-source matching -----------------------------------------------------
@@ -219,6 +252,32 @@ def find_match(value: str, pages: list[PageData], normalize_fn) -> Match:
     return Match("none")
 
 
+def near_candidates(value: str, pages: list[PageData], normalize_fn) -> set[str]:
+    """Normalized OCR texts (single words and adjacent pairs) that differ from value in exactly one
+    character, same length - the "near match" candidates, as values instead of a reason."""
+    out: set[str] = set()
+    if not value:
+        return out
+    for page in pages:
+        words = page.words
+        texts = [normalize_fn(w.text) for w in words]
+        texts += [normalize_fn(a.text) + normalize_fn(b.text) for a, b in zip(words, words[1:]) if _adjacent(a, b)]
+        for t in texts:
+            if len(t) == len(value) and Hamming.distance(t, value) == 1:
+                out.add(t)
+    return out
+
+
+def ocr_agreement_reason(value: str, tess_pages: list[PageData], google_pages: list[PageData], normalize_fn) -> Optional[str]:
+    """Tesseract and Google both read the same value, one character away from the AI's value.
+    Never changes the value or the state - it is a review reason with the alternative spelled out."""
+    agreed = near_candidates(value, tess_pages, normalize_fn) & near_candidates(value, google_pages, normalize_fn)
+    if not agreed:
+        return None
+    alt = sorted(agreed)[0]
+    return f"Tesseract ו-Google קראו שניהם '{alt}' (שונה ממה שזוהה: '{value}')"
+
+
 # --- Per-field scoring ----------------------------------------------------------
 
 def _score_text_field(raw_value: Optional[str], pages: list[PageData], normalize_fn) -> FieldResult:
@@ -234,25 +293,40 @@ def _score_text_field(raw_value: Optional[str], pages: list[PageData], normalize
 
 
 ID_WARNING = "מספר הזהות אינו תקין (ספרת ביקורת או אורך) - נשמר כפי שנקרא"
+ID_WARNING_PREFIX = "מספר הזהות"  # every ID warning starts with this (frontend shows them as the ⚠ icon)
 
 
-def id_warning(padded: str) -> list[str]:
-    """A national ID that fails the check digit / 9-digit rule is a warning, not a review reason:
-    the number is kept exactly as read (never cut or changed)."""
-    return [] if valid_israeli_id(padded) else [ID_WARNING]
+def id_key(value: str) -> str:
+    """Comparison key for national IDs: digits only, leading zeros ignored - so "11223344" read by one
+    source and "011223344" by another are the same ID. Only for COMPARING; the stored value is never padded."""
+    return normalize_digits(value or "").lstrip("0")
+
+
+def id_warning(value: str) -> list[str]:
+    """Warnings (the ⚠ icon), never review reasons: the ID is shown exactly as read - never padded,
+    cut or changed. A short ID gets a warning that explains it (often a missing leading 0)."""
+    digits = normalize_digits(value or "")
+    if len(digits) < 9:
+        out = [f"מספר הזהות נקרא עם {len(digits)} ספרות (ת״ז מלאה היא 9 ספרות - ייתכן שחסר 0 בהתחלה). מוצג כפי שנקרא"]
+        if not valid_israeli_id(pad_national_id(digits)):
+            out.append(ID_WARNING)
+        return out
+    if len(digits) > 9:
+        return [f"מספר הזהות נקרא עם {len(digits)} ספרות (יותר מ-9). מוצג כפי שנקרא"]
+    return [] if valid_israeli_id(digits) else [ID_WARNING]
 
 
 def score_national_id(fv: Optional[FieldValue], pages: list[PageData]) -> FieldResult:
     if fv is None or not fv.value:
         return _missing()
-    padded = pad_national_id(fv.value)
-    warn = id_warning(padded)
-    match = find_match(padded, pages, normalize_digits)
+    value = normalize_digits(fv.value)  # as read - never padded
+    warn = id_warning(value)
+    match = find_match(id_key(value), pages, id_key)
     if match.kind == "exact":
-        return FieldResult(value=padded, state="safe", reasons=warn, bbox=match.bbox, page=match.page, source=match.source)
+        return FieldResult(value=value, state="safe", reasons=warn, bbox=match.bbox, page=match.page, source=match.source)
     if match.kind == "near":
-        return FieldResult(value=padded, state="review", reasons=[match.reason, *warn], bbox=match.bbox, page=match.page, source=match.source)
-    return FieldResult(value=padded, state="review", reasons=["לא אומת על ידי מקור נוסף", *warn])
+        return FieldResult(value=value, state="review", reasons=[match.reason, *warn], bbox=match.bbox, page=match.page, source=match.source)
+    return FieldResult(value=value, state="review", reasons=["לא אומת על ידי מקור נוסף", *warn])
 
 
 _SEP = r"\s*[.\-/]\s*"  # a real separator, spaces around it allowed ("31 -08- 2026")
@@ -336,10 +410,10 @@ def score_received_date(dv: Optional[DateValue], pages: list[PageData], referenc
 def score_sender(fv: Optional[FieldValue], pages: list[PageData]) -> FieldResult:
     if fv is None or not fv.value:
         return _missing()
-    matched = sender_fuzzy_match(fv.value)
+    matched = sender_fuzzy_match(fv.value) or sender_fuzzy_match(fv.raw_text or "")
     if matched is None:
         return FieldResult(value=fv.value, state="review", reasons=["השולח אינו ברשימה הסגורה"])
-    match = find_match(matched, pages, lambda s: s.strip())
+    match = find_match(_sender_key(matched), pages, _sender_key)
     if match.kind == "exact":
         return FieldResult(value=matched, state="safe", bbox=match.bbox, page=match.page, source=match.source)
     if match.kind == "near":
@@ -408,5 +482,18 @@ def score_form(form: ExtractedForm, pages: list[PageData], reference_date: date)
                                               [c.value for c in form.central_numbers if c.value]) for cn in form.central_numbers] or [_missing()],
         received_date=score_received_date(form.received_date, pages, reference_date),
         sender=sender_result,
-        commitment_numbers=[score_commitment_number(cn, pages, sender_value) for cn in form.commitment_numbers] or [_missing()],
+        commitment_numbers=[_not_a_central_number(score_commitment_number(cn, pages, sender_value), form)
+                            for cn in form.commitment_numbers] or [_missing()],
     )
+
+
+SAME_AS_CENTRAL = "המספר זהה למספר המרכזי של הטופס - כנראה סווג בטעות כמספר התחייבות"
+
+
+def _not_a_central_number(result: FieldResult, form: ExtractedForm) -> FieldResult:
+    """The AI sometimes lists a central-number sticker (barcode + "מרכזי") as a commitment number too.
+    Such an item is always review with a clear reason - never silently dropped or kept as safe."""
+    centrals = {normalize_digits(c.value) for c in form.central_numbers if c.value}
+    if result.value and normalize_digits(result.value) in centrals:
+        return result.model_copy(update={"state": "review", "reasons": [SAME_AS_CENTRAL, *[r for r in result.reasons if r != SAME_AS_CENTRAL]]})
+    return result

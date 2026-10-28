@@ -41,7 +41,7 @@ def _normalize_scalar(name: str, value, sender_value) -> tuple[str | None, list[
     if value is None:
         return None, []
     if name == "national_id":
-        return pad_national_id(value), []  # an invalid ID is only a warning (see below)
+        return normalize_digits(value), []  # kept as typed, never padded; warnings are added below
     if name == "sender":
         matched = sender_fuzzy_match(value)
         return (matched or value), ([] if matched else ["השולח אינו ברשימה הסגורה"])

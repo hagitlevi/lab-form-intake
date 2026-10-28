@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>form (design reference)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F7F9;font-family:'Heebo',system-ui,sans-serif;color:#17232E}
+a{color:#0B6A85}a:hover{color:#084F63}
+.nav{padding:8px 14px;border-radius:8px;text-decoration:none;color:#3D4D5C;font-weight:500}
+.nav:hover{background:#EEF3F6;color:#17232E}
+.nav-on{background:#E3F0F4;color:#084F63}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 22px;border-radius:10px;font:inherit;font-weight:500;text-decoration:none;cursor:pointer;border:1px solid transparent}
+.btn-primary{background:#0B6A85;color:#FFFFFF}
+.btn-primary:hover{background:#084F63;color:#FFFFFF}
+.btn-ghost{background:#FFFFFF;color:#17232E;border-color:#C9D3DB}
+.icon-btn{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #C9D3DB;background:#FFFFFF;border-radius:8px;cursor:pointer;color:#3D4D5C}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:500;color:#4F5F6E}
+.inp{min-height:44px;padding:0 12px;border:1px solid #C9D3DB;border-radius:8px;font:inherit;font-size:16px;color:#17232E;background:#FFFFFF;box-sizing:border-box;width:100%}
+.inp-flag{border:2px solid #E8892B;background:#FFF8F0}
+.num{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;text-align:right}
+.line{height:2px;background:#D5DCE2;border-radius:1px}
+.ph{background:#E3E8EC;border-radius:4px}
+.bars{background:repeating-linear-gradient(90deg,#2B3640 0 2px,transparent 2px 4px,#2B3640 4px 7px,transparent 7px 9px)}
+</style>
+</head>
+<body>
+<div dir="rtl" lang="he" style="min-height: 100vh; display: flex; flex-direction: column">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DDE3E8">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 0 32px; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap">
+      <div style="display: flex; flex-direction: column; line-height: 1.25">
+        <span style="font-weight: 700; font-size: 17px">המעבדה המרכזית לנגיפים</span>
+        <span style="font-size: 13px; color: #5B6B7A">המרכז הרפואי שיבא</span>
+      </div>
+      <nav aria-label="ניווט ראשי" style="display: flex; gap: 4px">
+        <a class="nav nav-on" href="upload.html" aria-current="page">קליטת טפסים</a>
+        <a class="nav" href="records.html">רשומות</a>
+      </nav>
+    </div>
+  </header>
+
+  <main style="flex: 1; width: 100%; max-width: 1280px; margin: 0 auto; padding: 24px 32px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap">
+        <a href="review.html" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 500">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          חזרה לטבלה
+        </a>
+        <h1 style="margin: 0; font-size: 22px; font-weight: 700">טופס 5 מתוך 8 · ברזילי</h1>
+      </div>
+      <span style="font-size: 14px; color: #5B6B7A">שדה 3 מתוך 3 לבדיקה</span>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <section aria-label="הטופס הסרוק" style="flex: 999 1 560px; min-width: 0; background: #E8EDF1; border-radius: 14px; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; gap: 8px; justify-content: flex-end">
+          <button class="icon-btn" aria-label="הגדלה"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M11 8v6M8 11h6M16 16l4 4"/></svg></button>
+          <button class="icon-btn" aria-label="הקטנה"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M8 11h6M16 16l4 4"/></svg></button>
+          <button class="icon-btn" aria-label="סיבוב"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v4h-4"/></svg></button>
+        </div>
+
+        <div style="background: #FFFFFF; border-radius: 6px; padding: 32px 36px; display: flex; flex-direction: column; gap: 22px; max-width: 620px; width: 100%; margin: 0 auto; box-sizing: border-box">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start">
+            <div class="ph" style="width: 120px; height: 44px"></div>
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center">
+              <div class="bars" style="width: 92px; height: 30px"></div>
+              <span class="num" style="font-size: 13px; background: #FFF59D; padding: 0 4px">945992</span>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px; border: 1px solid #D5DCE2; border-radius: 4px; padding: 14px">
+            <div class="line" style="width: 70%"></div>
+            <div class="line" style="width: 55%"></div>
+            <div class="line" style="width: 62%"></div>
+            <div class="bars" style="width: 140px; height: 22px; margin-top: 4px"></div>
+          </div>
+          <div class="line" style="width: 40%"></div>
+          <div class="line" style="width: 30%"></div>
+          <div style="display: flex; align-items: center; gap: 14px; outline: 3px solid #E8892B; outline-offset: 6px; border-radius: 2px; background: #FFF3E6">
+            <span style="font-size: 13px; color: #4F5F6E">מס' התחייבות</span>
+            <span style="font-family: 'Segoe Script','Bradley Hand',cursive; font-size: 22px; color: #2B3640" class="num">11001</span>
+          </div>
+          <div class="line" style="width: 45%"></div>
+          <div class="line" style="width: 82%; margin-top: 18px"></div>
+          <div class="line" style="width: 60%"></div>
+          <div style="height: 40px"></div>
+        </div>
+        <span style="font-size: 13px; color: #4F5F6E; text-align: center">תצוגה סכמטית של הטופס הסרוק · המסגרת הכתומה מסמנת את השדה הנבחר</span>
+      </section>
+
+      <aside aria-label="שדות הטופס" style="flex: 1 1 360px; min-width: 0; background: #FFFFFF; border: 1px solid #DDE3E8; border-radius: 14px; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+        <div class="field" style="padding: 14px; margin: -6px -6px 4px; background: #FFF8F0; border-radius: 10px">
+          <label for="f-commit">מספר התחייבות</label>
+          <input id="f-commit" class="inp inp-flag num" value="11001" aria-describedby="f-commit-help">
+          <span id="f-commit-help" style="font-size: 13px; color: #8A4500">כתב יד לא ברור. יש להשוות למסומן בטופס ולתקן אם צריך.</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+          <div class="field"><label for="f-first">שם פרטי</label><input id="f-first" class="inp" value="ישראל"></div>
+          <div class="field"><label for="f-last">שם משפחה</label><input id="f-last" class="inp" value="ישראלי"></div>
+          <div class="field"><label for="f-id">ת״ז</label><input id="f-id" class="inp num" value="011223344"></div>
+          <div class="field"><label for="f-date">תאריך קבלה</label><input id="f-date" class="inp num" value="13.08.2026"></div>
+          <div class="field"><label for="f-central">מספר מרכזי</label><input id="f-central" class="inp num" value="945992"></div>
+          <div class="field"><label for="f-sender">גורם שולח</label>
+            <select id="f-sender" class="inp">
+              <option>ברזילי</option>
+              <option>שמיר (אסף הרופא)</option>
+              <option>וולפסון</option>
+            </select>
+          </div>
+        </div>
+        <button style="align-self: flex-start; background: none; border: 0; padding: 4px 0; font: inherit; font-size: 14px; font-weight: 500; color: #0B6A85; cursor: pointer">+ הוספת מספר מרכזי או התחייבות</button>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; border-top: 1px solid #EEF1F4; padding-top: 16px; margin-top: 4px">
+          <a class="btn btn-primary" href="review.html" style="flex: 1 1 auto">אישור הטופס</a>
+          <a class="btn btn-ghost" href="review.html">הבא לבדיקה</a>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</body>
+</html>

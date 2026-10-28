@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>review (design reference)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&amp;display=swap">
+<style>
+body{margin:0;background:#F4F7F9;font-family:'Heebo',system-ui,sans-serif;color:#17232E}
+a{color:#0B6A85}a:hover{color:#084F63}
+.nav{padding:8px 14px;border-radius:8px;text-decoration:none;color:#3D4D5C;font-weight:500}
+.nav:hover{background:#EEF3F6;color:#17232E}
+.nav-on{background:#E3F0F4;color:#084F63}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 22px;border-radius:10px;font:inherit;font-weight:500;text-decoration:none;cursor:pointer;border:1px solid transparent}
+.btn-primary{background:#0B6A85;color:#FFFFFF}
+.btn-primary:hover{background:#084F63;color:#FFFFFF}
+.btn-ghost{background:#FFFFFF;color:#17232E;border-color:#C9D3DB}
+.seg{min-height:40px;padding:0 16px;border:0;border-radius:8px;background:transparent;font:inherit;font-weight:500;color:#3D4D5C;cursor:pointer}
+.seg-on{background:#FFFFFF;color:#17232E;box-shadow:0 0 0 1px #C9D3DB}
+.tbl{width:100%;table-layout:fixed;border-collapse:collapse;font-size:15px}
+.tbl th,.tbl td{text-align:center;vertical-align:middle;overflow-wrap:anywhere;border-inline-end:1px solid #E3E8EC}
+.tbl th:last-child,.tbl td:last-child{border-inline-end:0}
+.tbl th{font-weight:500;color:#4F5F6E;font-size:14px;padding:12px 10px;background:#F1F5F8;border-bottom:2px solid #C9D3DB}
+.tbl td{height:56px;padding:12px 10px;border-bottom:1px solid #E3E8EC}
+.tbl tr:last-child td{border-bottom:0}
+.tbl th:first-child,.tbl td:first-child{border-inline-start:3px solid transparent}
+.tbl tbody tr:hover td{background:#EEF5F8}
+.tbl tbody tr:hover td:first-child{border-inline-start-color:#0B6A85}
+.tbl td:not(.flag):hover{background:#FFFFFF;box-shadow:inset 0 0 0 2px #0B6A85,0 2px 8px rgba(11,106,133,.18);transition:background 120ms,box-shadow 120ms;position:relative;z-index:1}
+.tbl tbody tr:hover td.flag{background:#FFF3E6}
+.tbl tbody tr td.flag:hover{background:#FFE6C7}
+.num{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+.tbl td.flag{background:#FFF3E6;box-shadow:inset 0 0 0 2px #E8892B}
+.flag-tag{display:block;font-size:12px;font-weight:500;color:#8A4500;margin-top:3px}
+.empty{color:#8A4500}
+</style>
+</head>
+<body>
+<div dir="rtl" lang="he" style="min-height: 100vh; display: flex; flex-direction: column">
+  <header style="background: #FFFFFF; border-bottom: 1px solid #DDE3E8">
+    <div style="max-width: 1280px; margin: 0 auto; padding: 0 32px; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap">
+      <div style="display: flex; flex-direction: column; line-height: 1.25">
+        <span style="font-weight: 700; font-size: 17px">המעבדה המרכזית לנגיפים</span>
+        <span style="font-size: 13px; color: #5B6B7A">המרכז הרפואי שיבא</span>
+      </div>
+      <nav aria-label="ניווט ראשי" style="display: flex; gap: 4px">
+        <a class="nav nav-on" href="upload.html" aria-current="page">קליטת טפסים</a>
+        <a class="nav" href="records.html">רשומות</a>
+      </nav>
+    </div>
+  </header>
+
+  <main style="flex: 1; width: 100%; max-width: 1600px; margin: 0 auto; padding: 32px 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 style="margin: 0; font-size: 28px; font-weight: 700">בדיקת ערימה</h1>
+        <span style="font-size: 15px; color: #5B6B7A">19.10.2026 · 8 טפסים · 8 רשומות</span>
+      </div>
+      <a class="btn btn-primary" href="records.html" style="font-size: 16px">אישור ושמירה של 8 רשומות</a>
+    </div>
+
+    <div role="status" style="background: #FFF3E6; border: 1px solid #F2C28E; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B35C00" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4"/><path d="M12 17.5h.01"/></svg>
+        <span style="font-size: 16px; color: #6B3600"><b style="font-weight: 700">3 שדות לבדיקה.</b> כל שאר השדות זוהו בביטחון גבוה.</span>
+      </div>
+      <a class="btn btn-ghost" href="form.html" style="min-height: 40px">לשדה הראשון לבדיקה</a>
+    </div>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+      <div role="group" aria-label="סינון" style="display: inline-flex; gap: 4px; padding: 4px; background: #E8EDF1; border-radius: 10px">
+        <button class="seg seg-on" aria-pressed="true">הכל (8)</button>
+        <button class="seg" aria-pressed="false">רק לבדיקה (3)</button>
+      </div>
+      <span style="font-size: 14px; color: #5B6B7A">לחיצה על תא פותחת עריכה · לחיצה על שורה פותחת את הטופס</span>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1px solid #DDE3E8; border-radius: 14px; overflow: hidden">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th scope="col">עמ'</th>
+            <th scope="col">שם פרטי</th>
+            <th scope="col">שם משפחה</th>
+            <th scope="col">ת״ז</th>
+            <th scope="col">מספר מרכזי</th>
+            <th scope="col">תאריך קבלה</th>
+            <th scope="col">גורם שולח</th>
+            <th scope="col">מספר התחייבות</th>
+            <th scope="col"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden">טופס</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947768</span></td><td><span class="num">27.08.2026</span></td><td>שמיר (אסף הרופא)</td><td><span class="num">2646</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+          <tr>
+            <td class="num">2</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">948205</span></td><td><span class="num">31.08.2026</span></td><td>שניידר</td>
+            <td class="flag"><span class="empty">ריק</span><span class="flag-tag">לבדיקה · לא נמצא בטופס</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+          <tr>
+            <td class="num">3</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947476</span></td><td><span class="num">25.08.2026</span></td><td>אסותא אשדוד</td><td><span class="num">141046589</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+          <tr>
+            <td class="num">4</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">946621</span></td>
+            <td class="flag"><span class="num">18.08.2026</span><span class="flag-tag">לבדיקה · חותמת דהויה</span></td>
+            <td>בני ציון</td><td><span class="num">436702</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+          <tr>
+            <td class="num">5</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">945992</span></td><td><span class="num">13.08.2026</span></td><td>ברזילי</td>
+            <td class="flag"><span class="num">11001</span><span class="flag-tag">לבדיקה · כתב יד לא ברור</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+          <tr>
+            <td class="num">6</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947468</span><br><span class="num">947469</span></td><td><span class="num">25.08.2026</span></td><td>וולפסון</td><td><span class="num">7254627</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+          <tr>
+            <td class="num">7</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">947328</span></td><td><span class="num">24.08.2026</span></td><td>לניאדו</td><td><span class="num">X132767</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+          <tr>
+            <td class="num">8</td><td>ישראל</td><td>ישראלי</td><td><span class="num">011223344</span></td><td><span class="num">945598</span></td><td><span class="num">10.08.2026</span></td><td>שרון (כללית)</td><td><span class="num">375365293</span></td>
+            <td><a href="form.html">טופס</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</body>
+</html>

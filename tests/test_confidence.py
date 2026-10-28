@@ -117,7 +117,17 @@ class TestScoreForm(unittest.TestCase):
         conf = score_form(form, [page([word("0011223344", 0, 0)])], TODAY)
         self.assertEqual(conf.national_id.value, "0011223344")
         self.assertEqual(conf.national_id.state, "safe")
-        self.assertEqual(conf.national_id.reasons, [ID_WARNING])
+        self.assertEqual(len(conf.national_id.reasons), 1)
+        self.assertIn("10 ספרות", conf.national_id.reasons[0])
+
+    def test_eight_digit_id_is_shown_as_read_with_a_length_warning(self):
+        form = ExtractedForm(page_indexes=[0], national_id=FieldValue(value="11223344"))
+        # OCR shows it with the leading zero: same ID, still verified
+        conf = score_form(form, [page([word("011223344", 0, 0)])], TODAY)
+        self.assertEqual(conf.national_id.value, "11223344")       # never padded
+        self.assertEqual(conf.national_id.state, "safe")
+        self.assertIn("8 ספרות", conf.national_id.reasons[0])
+        self.assertTrue(conf.national_id.reasons[0].startswith("מספר הזהות"))
 
     def test_id_safe_when_valid_and_confirmed(self):
         form = ExtractedForm(page_indexes=[0], national_id=FieldValue(value="123456782"))
@@ -344,3 +354,79 @@ class TestSeveralCentralNumbers(unittest.TestCase):
         form = ExtractedForm(page_indexes=[0], central_numbers=[FieldValue(value="937309")])
         conf = score_form(form, [page([word("937309", 100, 100)], barcodes=[barcode("123456")])], TODAY)
         self.assertEqual(conf.central_numbers[0].state, "review")
+
+
+class TestSenderSmarter(unittest.TestCase):
+    def test_official_long_name_maps_to_list_name(self):
+        self.assertEqual(sender_fuzzy_match('המרכז הרפואי האוניברסיטאי ע"ש אדית וולפסון'), "וולפסון")
+        self.assertEqual(sender_fuzzy_match("וולפסון, בית חולים וולפסון"), "וולפסון")
+        self.assertEqual(sender_fuzzy_match("מרכז רפואי צפון פוריה"), "פוריה")
+        self.assertEqual(sender_fuzzy_match("המרכז הרפואי בני ציון"), "בני-ציון")
+
+    def test_two_different_list_names_is_ambiguous(self):
+        self.assertIsNone(sender_fuzzy_match("מחלקת שיקום, בית חולים שיבא"))
+        self.assertIsNone(sender_fuzzy_match("כללית מכבי"))
+
+    def test_name_inside_another_word_does_not_count(self):
+        self.assertIsNone(sender_fuzzy_match("קלינטון"))  # contains "לין" letters, not the word
+
+    def test_sender_verified_by_ocr_word_with_punctuation(self):
+        form = ExtractedForm(page_indexes=[0], sender=FieldValue(value="וולפסון, בית חולים וולפסון"))
+        conf = score_form(form, [page([word("וולפסון,", 100, 100)])], TODAY)
+        self.assertEqual(conf.sender.value, "וולפסון")
+        self.assertEqual(conf.sender.state, "safe")
+
+    def test_two_word_sender_verified_by_two_ocr_words(self):
+        form = ExtractedForm(page_indexes=[0], sender=FieldValue(value="אסף הרופא"))
+        words = [word("אסף", 100, 100, width=40), word("הרופא", 145, 100, width=50)]
+        self.assertEqual(score_form(form, [page(words)], TODAY).sender.state, "safe")
+
+
+class TestCommitmentSameAsCentral(unittest.TestCase):
+    def test_commitment_equal_to_central_is_review_with_reason(self):
+        form = ExtractedForm(page_indexes=[0], sender=FieldValue(value="כללית"),
+                             central_numbers=[FieldValue(value="945599")],
+                             commitment_numbers=[FieldValue(value="945599"), FieldValue(value="375365255")])
+        pg = page([word("945599", 100, 100), word("375365255", 100, 300), word("כללית", 100, 500)], barcodes=[barcode("945599")])
+        conf = score_form(form, [pg], TODAY)
+        self.assertEqual(conf.central_numbers[0].state, "safe")
+        dup, real = conf.commitment_numbers
+        self.assertEqual(dup.state, "review")
+        self.assertIn("זהה למספר המרכזי", dup.reasons[0])
+        self.assertEqual(real.state, "safe")
+
+
+class TestWolfsonFormat(unittest.TestCase):
+    def test_wolfson_serial_number_is_not_a_valid_commitment(self):
+        form = ExtractedForm(page_indexes=[0], sender=FieldValue(value="וולפסון"),
+                             commitment_numbers=[FieldValue(value="7254647"), FieldValue(value="58153")])
+        pg = page([word("וולפסון", 100, 50), word("7254647", 100, 300), word("58153", 100, 500)])
+        sticker, serial = score_form(form, [pg], TODAY).commitment_numbers
+        self.assertEqual(sticker.state, "safe")
+        self.assertEqual(serial.state, "review")
+        self.assertIn("פורמט", serial.reasons[0])
+
+
+class TestCommitmentFormatsAgainstTruth(unittest.TestCase):
+    """Every commitment number in the hand-filled ground truth must pass its sender's format rule -
+    a format rule that rejects a known-correct value turns correct fields orange."""
+
+    def test_truth_commitments_pass_their_format(self):
+        import json
+        from pathlib import Path
+        truth = Path(__file__).resolve().parent.parent / "samples" / "ground_truth.json"
+        if not truth.exists():
+            self.skipTest("no ground truth file")
+        failures = []
+        for f in json.loads(truth.read_text(encoding="utf-8"))["forms"]:
+            if not f.get("filled"):
+                continue
+            sender = sender_fuzzy_match(f.get("sender") or "") or f.get("sender")
+            for c in f.get("commitment_numbers") or []:
+                if not commitment_format_ok(normalize_digits(str(c), keep_leading_letter=True), sender):
+                    failures.append((sender, c))
+        self.assertEqual(failures, [])
+
+    def test_kaplan_clalit_eight_digit_commitment_passes(self):
+        self.assertTrue(commitment_format_ok("66608489", "כללית"))
+        self.assertFalse(commitment_format_ok("945599", "כללית"))
